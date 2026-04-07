@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ShipFlow Analytics</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        :root{--bg:#0b0e14;--surface:#151921;--surface-2:#1c2130;--surface-3:#242938;--border:#252b3a;--text:#e2e4ea;--text-muted:#7a809a;--accent:#4f8cff;--accent-dim:rgba(79,140,255,0.12);--green:#34d399;--green-dim:rgba(52,211,153,0.12);--red:#f87171;--red-dim:rgba(248,113,113,0.12);--orange:#fbbf24;--orange-dim:rgba(251,191,36,0.12);--purple:#a78bfa;--purple-dim:rgba(167,139,250,0.12);--cyan:#22d3ee;--pink:#f472b6}
+        body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+        /* Sidebar */
+        .sidebar{position:fixed;left:0;top:0;bottom:0;width:230px;background:var(--surface);border-right:1px solid var(--border);padding:20px 14px;display:flex;flex-direction:column;z-index:10;overflow-y:auto}
+        .logo{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+        .logo svg{width:28px;height:28px;color:var(--accent)}
+        .logo h1{font-size:17px;font-weight:700}
+        .logo-sub{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:24px}
+        .nav-group{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;padding:14px 12px 5px}
+        .nav-item{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;color:var(--text-muted);cursor:pointer;font-size:13px;transition:all .15s;margin-bottom:1px}
+        .nav-item:hover{background:var(--surface-2);color:var(--text)}
+        .nav-item.active{background:var(--accent-dim);color:var(--accent);font-weight:600}
+        .nav-item svg{width:17px;height:17px;flex-shrink:0}
+        .nav-item .badge-count{margin-left:auto;background:var(--red);color:#fff;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600}
+        .sidebar-footer{margin-top:auto;padding-top:16px;border-top:1px solid var(--border)}
+        /* Main */
+        .main{margin-left:230px;padding:28px 32px;max-width:1300px}
+        .page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px}
+        .page-title{font-size:22px;font-weight:700}
+        .page-subtitle{font-size:13px;color:var(--text-muted)}
+        /* KPIs */
+        .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:28px}
+        .kpi{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px}
+        .kpi-label{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+        .kpi-value{font-size:26px;font-weight:700}
+        .kpi-sub{font-size:12px;margin-top:3px}
+        .kpi-sub.up{color:var(--green)}.kpi-sub.down{color:var(--red)}.kpi-sub.neutral{color:var(--text-muted)}
+        .kpi-icon{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;margin-bottom:10px}
+        .kpi-icon svg{width:18px;height:18px}
+        .kpi-icon.blue{background:var(--accent-dim);color:var(--accent)}
+        .kpi-icon.green{background:var(--green-dim);color:var(--green)}
+        .kpi-icon.red{background:var(--red-dim);color:var(--red)}
+        .kpi-icon.orange{background:var(--orange-dim);color:var(--orange)}
+        .kpi-icon.purple{background:var(--purple-dim);color:var(--purple)}
+        /* Grids */
+        .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+        .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:20px}
+        .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px}
+        .card.full{grid-column:1/-1}
+        .card-title{font-size:13px;font-weight:600;margin-bottom:14px;display:flex;align-items:center;gap:6px}
+        .card-title .dot{width:8px;height:8px;border-radius:50%}
+        .chart-wrap{position:relative;height:240px}
+        .chart-wrap.tall{height:320px}
+        /* Tables */
+        table{width:100%;border-collapse:collapse;font-size:12px}
+        th{text-align:left;padding:9px 10px;color:var(--text-muted);font-weight:500;border-bottom:1px solid var(--border);font-size:10px;text-transform:uppercase;letter-spacing:.5px}
+        td{padding:9px 10px;border-bottom:1px solid var(--border)}
+        tr:hover td{background:var(--surface-2)}
+        .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600}
+        .badge-delivered{background:var(--green-dim);color:var(--green)}
+        .badge-in_transit,.badge-in-transit{background:var(--accent-dim);color:var(--accent)}
+        .badge-out_for_delivery{background:var(--purple-dim);color:var(--purple)}
+        .badge-returned{background:var(--red-dim);color:var(--red)}
+        .badge-exception{background:var(--orange-dim);color:var(--orange)}
+        .badge-label_created{background:rgba(255,255,255,.06);color:var(--text-muted)}
+        .badge-picked_up{background:rgba(34,211,238,.12);color:var(--cyan)}
+        .badge-open{background:var(--orange-dim);color:var(--orange)}
+        .badge-resolved,.badge-paid,.badge-active,.badge-verified{background:var(--green-dim);color:var(--green)}
+        .badge-denied{background:var(--red-dim);color:var(--red)}
+        .badge-investigating,.badge-pending{background:var(--accent-dim);color:var(--accent)}
+        .badge-overdue{background:var(--red-dim);color:var(--red)}
+        /* Buttons */
+        .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .15s}
+        .btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{background:#3d7ae6}
+        .btn-secondary{background:var(--surface-2);color:var(--text);border:1px solid var(--border)}.btn-secondary:hover{background:var(--surface-3)}
+        .btn-danger{background:var(--red-dim);color:var(--red)}.btn-danger:hover{background:rgba(248,113,113,.2)}
+        .btn-success{background:var(--green-dim);color:var(--green)}
+        .btn-sm{padding:5px 10px;font-size:11px}
+        /* Forms */
+        .form-group{margin-bottom:16px}
+        .form-label{display:block;font-size:12px;color:var(--text-muted);margin-bottom:5px;font-weight:500}
+        .form-input,.form-select{width:100%;padding:9px 12px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none;transition:border .15s}
+        .form-input:focus,.form-select:focus{border-color:var(--accent)}
+        .form-select{cursor:pointer}
+        .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+        .form-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+        textarea.form-input{resize:vertical;min-height:60px}
+        /* Funnel */
+        .funnel-steps{display:flex;flex-direction:column;gap:10px}
+        .funnel-row{display:flex;align-items:center;gap:12px}
+        .funnel-label{width:120px;font-size:12px;color:var(--text-muted);text-align:right}
+        .funnel-bar-bg{flex:1;height:34px;background:var(--surface-2);border-radius:6px;overflow:hidden}
+        .funnel-bar{height:100%;border-radius:6px;display:flex;align-items:center;padding-left:12px;font-size:11px;font-weight:600;transition:width .6s ease}
+        /* Progress */
+        .progress-bg{width:100%;height:6px;background:var(--surface-2);border-radius:3px;overflow:hidden}
+        .progress-fill{height:100%;border-radius:3px}
+        /* Payment method cards */
+        .pm-card{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:16px;display:flex;align-items:center;gap:14px;margin-bottom:10px}
+        .pm-card.default{border-color:var(--accent)}
+        .pm-icon{width:44px;height:44px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700}
+        .pm-icon.bank{background:var(--green-dim);color:var(--green)}
+        .pm-icon.card{background:var(--accent-dim);color:var(--accent)}
+        .pm-icon.paypal{background:var(--purple-dim);color:var(--purple)}
+        .pm-icon.wire{background:var(--orange-dim);color:var(--orange)}
+        .pm-info{flex:1}
+        .pm-info .label{font-weight:600;font-size:14px}
+        .pm-info .meta{font-size:11px;color:var(--text-muted);margin-top:2px}
+        .pm-actions{display:flex;gap:6px}
+        /* Tracking timeline */
+        .timeline{padding-left:24px;border-left:2px solid var(--border)}
+        .timeline-item{position:relative;padding:0 0 24px 20px}
+        .timeline-item:last-child{padding-bottom:0}
+        .timeline-dot{position:absolute;left:-29px;top:2px;width:12px;height:12px;border-radius:50%;background:var(--accent);border:2px solid var(--bg)}
+        .timeline-dot.green{background:var(--green)}.timeline-dot.red{background:var(--red)}.timeline-dot.orange{background:var(--orange)}
+        .timeline-title{font-weight:600;font-size:13px;margin-bottom:2px}
+        .timeline-desc{font-size:12px;color:var(--text-muted)}
+        .timeline-time{font-size:11px;color:var(--text-muted);margin-top:2px}
+        /* Tabs */
+        .tabs{display:flex;gap:4px;margin-bottom:20px;border-bottom:1px solid var(--border);padding-bottom:0}
+        .tab{padding:8px 16px;font-size:13px;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s}
+        .tab:hover{color:var(--text)}
+        .tab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+        /* Toast */
+        .toast{position:fixed;top:20px;right:20px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:14px 20px;font-size:13px;z-index:999;display:none;box-shadow:0 8px 30px rgba(0,0,0,.4);max-width:360px}
+        .toast.success{border-color:var(--green)}.toast.error{border-color:var(--red)}
+        /* Modal */
+        .modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);z-index:100;display:none;align-items:center;justify-content:center}
+        .modal-overlay.active{display:flex}
+        .modal{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:90%;max-width:520px;max-height:85vh;overflow-y:auto}
+        .modal h3{font-size:18px;margin-bottom:16px}
+        /* Sections */
+        .section{display:none}.section.active{display:block}
+        /* Rate results */
+        .rate-card{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
+        .rate-info h4{font-size:14px;font-weight:600}.rate-info .meta{font-size:12px;color:var(--text-muted);margin-top:2px}
+        .rate-price{text-align:right}.rate-price .total{font-size:22px;font-weight:700;color:var(--green)}.rate-price .detail{font-size:11px;color:var(--text-muted)}
+        /* Inbox */
+        .inbox-item{display:flex;gap:12px;padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s;align-items:flex-start}
+        .inbox-item:hover{background:var(--surface-2)}
+        .inbox-item.active{background:var(--accent-dim);border-left:3px solid var(--accent)}
+        .inbox-item.unread{background:rgba(255,255,255,.02)}
+        .inbox-item.unread .inbox-title{font-weight:700}
+        .inbox-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:6px}
+        .inbox-dot.shipping{background:var(--accent)}.inbox-dot.billing{background:var(--green)}.inbox-dot.alert{background:var(--orange)}.inbox-dot.system{background:var(--purple)}
+        .inbox-content{flex:1;min-width:0}
+        .inbox-title{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .inbox-subject{font-size:11px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+        .inbox-meta{display:flex;align-items:center;gap:6px;margin-top:3px}
+        .inbox-time{font-size:10px;color:var(--text-muted)}
+        .inbox-star{cursor:pointer;font-size:14px;color:var(--text-muted);flex-shrink:0;margin-top:4px}
+        .inbox-star.starred{color:var(--orange)}
+        .notif-detail-header{border-bottom:1px solid var(--border);padding-bottom:16px;margin-bottom:16px}
+        .notif-detail-title{font-size:18px;font-weight:700;margin-bottom:4px}
+        .notif-detail-subject{font-size:14px;color:var(--text-muted);margin-bottom:12px}
+        .notif-detail-meta{display:flex;gap:16px;font-size:12px;color:var(--text-muted);flex-wrap:wrap}
+        .notif-detail-meta span{display:flex;align-items:center;gap:4px}
+        .notif-detail-body{font-size:13px;line-height:1.7;white-space:pre-wrap;font-family:'SF Mono',Consolas,monospace;background:var(--surface-2);border-radius:8px;padding:16px;margin:16px 0;color:var(--text)}
+        .notif-detail-actions{display:flex;gap:8px;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)}
+        .priority-badge{display:inline-block;padding:1px 6px;border-radius:6px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+        .priority-badge.high{background:var(--red-dim);color:var(--red)}.priority-badge.normal{background:var(--accent-dim);color:var(--accent)}.priority-badge.low{background:rgba(255,255,255,.06);color:var(--text-muted)}
+        /* Responsive */
+        @media(max-width:1000px){.sidebar{display:none}.main{margin-left:0}.grid-2,.grid-3{grid-template-columns:1fr}.form-row,.form-row-3{grid-template-columns:1fr}#inbox-layout{grid-template-columns:1fr !important}}
+    </style>
+</head>
+<body>
+<div id="toast" class="toast"></div>
+<div id="modal-overlay" class="modal-overlay"><div id="modal" class="modal"></div></div>
+
+<nav class="sidebar">
+    <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 17H4a2 2 0 01-2-2V5a2 2 0 012-2h16a2 2 0 012 2v10a2 2 0 01-2 2h-1"/><polygon points="12 15 17 21 7 21 12 15"/></svg>
+        <h1>ShipFlow</h1>
+    </div>
+    <div class="logo-sub">Shipping Analytics</div>
+
+    <div class="nav-group">Overview</div>
+    <div class="nav-item active" data-section="dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Dashboard</div>
+
+    <div class="nav-group">Shipping</div>
+    <div class="nav-item" data-section="shipments"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>Shipments</div>
+    <div class="nav-item" data-section="create-shipment"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Create Shipment</div>
+    <div class="nav-item" data-section="tracking"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>Track Package</div>
+    <div class="nav-item" data-section="rate-calc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="12" y2="14"/></svg>Rate Calculator</div>
+    <div class="nav-item" data-section="carriers"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>Carriers</div>
+
+    <div class="nav-group">Analytics</div>
+    <div class="nav-item" data-section="delivery"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Delivery Performance</div>
+    <div class="nav-item" data-section="geographic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>Geographic</div>
+    <div class="nav-item" data-section="costs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>Cost Analysis</div>
+    <div class="nav-item" data-section="customers"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>Customers</div>
+    <div class="nav-item" data-section="claims"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Claims</div>
+    <div class="nav-item" data-section="warehouses"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Warehouses</div>
+
+    <div class="nav-group">Account</div>
+    <div class="nav-item" data-section="account"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>My Account</div>
+    <div class="nav-item" data-section="payments"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>Payment Methods</div>
+    <div class="nav-item" data-section="billing"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Billing</div>
+    <div class="nav-item" data-section="notifications"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>Notifications<span id="notif-badge" class="badge-count" style="display:none">0</span></div>
+    <div class="nav-item" data-section="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>Settings</div>
+</nav>
+
+<main class="main">
+
+<!-- ==================== DASHBOARD ==================== -->
+<div id="dashboard" class="section active">
+    <div class="page-header"><div><div class="page-title">Dashboard</div><div class="page-subtitle">Shipping operations overview</div></div></div>
+    <div class="kpi-grid" id="dash-kpis"></div>
+    <div class="grid-2"><div class="card full"><div class="card-title"><span class="dot" style="background:var(--accent)"></span>Daily Shipment Volume & Revenue</div><div class="chart-wrap"><canvas id="c-daily-vol"></canvas></div></div></div>
+    <div class="grid-2"><div class="card"><div class="card-title"><span class="dot" style="background:var(--green)"></span>Shipment Status</div><div class="chart-wrap"><canvas id="c-dash-status"></canvas></div></div><div class="card"><div class="card-title"><span class="dot" style="background:var(--purple)"></span>Service Level Mix</div><div class="chart-wrap"><canvas id="c-dash-service"></canvas></div></div></div>
+    <div class="card"><div class="card-title">Recent Shipments</div><div style="overflow-x:auto"><table id="dash-table"><thead><tr><th>Tracking</th><th>Customer</th><th>Carrier</th><th>Service</th><th>Destination</th><th>Status</th><th>Cost</th><th>Date</th></tr></thead><tbody></tbody></table></div></div>
+</div>
+
+<!-- ==================== SHIPMENTS ==================== -->
+<div id="shipments" class="section">
+    <div class="page-header"><div><div class="page-title">Shipments</div><div class="page-subtitle">Volume, status, and trends</div></div></div>
+    <div class="kpi-grid" id="ship-kpis"></div>
+    <div class="grid-2"><div class="card full"><div class="card-title"><span class="dot" style="background:var(--accent)"></span>Daily Volume</div><div class="chart-wrap"><canvas id="c-ship-daily"></canvas></div></div></div>
+    <div class="grid-3"><div class="card"><div class="card-title">By Status</div><div class="chart-wrap"><canvas id="c-ship-status"></canvas></div></div><div class="card"><div class="card-title">By Service Level</div><div class="chart-wrap"><canvas id="c-ship-svc"></canvas></div></div><div class="card"><div class="card-title">By Package Type</div><div class="chart-wrap"><canvas id="c-ship-pkg"></canvas></div></div></div>
+    <div class="card"><div class="card-title">Shipping Funnel</div><div id="ship-funnel" class="funnel-steps"></div></div>
+</div>
+
+<!-- ==================== CREATE SHIPMENT ==================== -->
+<div id="create-shipment" class="section">
+    <div class="page-header"><div><div class="page-title">Create Shipment</div><div class="page-subtitle">Ship a new package</div></div></div>
+    <div class="grid-2">
+        <div class="card">
+            <div class="card-title">Recipient Details</div>
+            <div class="form-group"><label class="form-label">Name</label><input class="form-input" id="cs-name" placeholder="Recipient name"></div>
+            <div class="form-group"><label class="form-label">Address</label><input class="form-input" id="cs-address" placeholder="Street address"></div>
+            <div class="form-row">
+                <div class="form-group"><label class="form-label">City</label><input class="form-input" id="cs-city" placeholder="City"></div>
+                <div class="form-group"><label class="form-label">State</label><select class="form-select" id="cs-state"><option value="">Select state</option><option>AL</option><option>AZ</option><option>CA</option><option>CO</option><option>CT</option><option>FL</option><option>GA</option><option>IA</option><option>IL</option><option>IN</option><option>MA</option><option>ME</option><option>MI</option><option>MN</option><option>MO</option><option>NC</option><option>NH</option><option>NJ</option><option>NM</option><option>NV</option><option>NY</option><option>OH</option><option>OK</option><option>OR</option><option>PA</option><option>RI</option><option>SC</option><option>TN</option><option>TX</option><option>UT</option><option>VA</option><option>VT</option><option>WA</option><option>WI</option></select></div>
+            </div>
+            <div class="form-group"><label class="form-label">ZIP Code</label><input class="form-input" id="cs-zip" placeholder="ZIP code"></div>
+            <div class="form-group"><label class="form-label">Saved Addresses</label><select class="form-select" id="cs-saved-addr"><option value="">-- Use saved address --</option></select></div>
+        </div>
+        <div class="card">
+            <div class="card-title">Package Details</div>
+            <div class="form-row">
+                <div class="form-group"><label class="form-label">Weight (lbs)</label><input class="form-input" id="cs-weight" type="number" step="0.1" placeholder="0.0"></div>
+                <div class="form-group"><label class="form-label">Declared Value ($)</label><input class="form-input" id="cs-value" type="number" step="0.01" placeholder="0.00"></div>
+            </div>
+            <div class="form-group"><label class="form-label">Dimensions (LxWxH in)</label><input class="form-input" id="cs-dims" placeholder="12x8x6"></div>
+            <div class="form-row">
+                <div class="form-group"><label class="form-label">Package Type</label><select class="form-select" id="cs-pkg"><option>parcel</option><option>envelope</option><option>box_small</option><option>box_medium</option><option>box_large</option><option>pallet</option><option>tube</option><option>flat_rate</option></select></div>
+                <div class="form-group"><label class="form-label">Service Level</label><select class="form-select" id="cs-svc"><option>ground</option><option>express</option><option>overnight</option><option>economy</option><option>freight</option></select></div>
+            </div>
+            <div class="form-group"><label class="form-label">Carrier</label><select class="form-select" id="cs-carrier"></select></div>
+            <div class="form-group"><label class="form-label">Special Instructions</label><textarea class="form-input" id="cs-instructions" placeholder="Fragile, signature required, etc."></textarea></div>
+            <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:8px" onclick="submitShipment()">Create Shipment</button>
+            <div id="cs-result" style="margin-top:14px;display:none"></div>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== TRACKING ==================== -->
+<div id="tracking" class="section">
+    <div class="page-header"><div><div class="page-title">Track Package</div><div class="page-subtitle">Enter a tracking number to see real-time status</div></div></div>
+    <div class="card" style="max-width:600px">
+        <div style="display:flex;gap:10px"><input class="form-input" id="track-input" placeholder="Enter tracking number (e.g. SF1A2B3C4D5E6)"><button class="btn btn-primary" onclick="trackPackage()">Track</button></div>
+    </div>
+    <div id="track-result" style="margin-top:20px"></div>
+</div>
+
+<!-- ==================== RATE CALCULATOR ==================== -->
+<div id="rate-calc" class="section">
+    <div class="page-header"><div><div class="page-title">Rate Calculator</div><div class="page-subtitle">Get instant shipping quotes across all carriers</div></div></div>
+    <div class="grid-2">
+        <div class="card">
+            <div class="card-title">Shipment Details</div>
+            <div class="form-group"><label class="form-label">Weight (lbs)</label><input class="form-input" id="rc-weight" type="number" step="0.1" value="5"></div>
+            <div class="form-row">
+                <div class="form-group"><label class="form-label">Origin Region</label><select class="form-select" id="rc-origin"><option>Northeast</option><option>Southeast</option><option>Midwest</option><option>Southwest</option><option>West</option></select></div>
+                <div class="form-group"><label class="form-label">Destination Region</label><select class="form-select" id="rc-dest"><option>Northeast</option><option>Southeast</option><option>Midwest</option><option>Southwest</option><option selected>West</option></select></div>
+            </div>
+            <div class="form-group"><label class="form-label">Declared Value ($)</label><input class="form-input" id="rc-value" type="number" step="0.01" value="100"></div>
+            <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="calcRates()">Get Quotes</button>
+        </div>
+        <div class="card">
+            <div class="card-title">Available Rates</div>
+            <div id="rate-results"><p style="color:var(--text-muted);font-size:13px">Enter shipment details and click "Get Quotes"</p></div>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== CARRIERS ==================== -->
+<div id="carriers" class="section">
+    <div class="page-header"><div><div class="page-title">Carrier Performance</div><div class="page-subtitle">Compare carriers by speed, cost, and reliability</div></div></div>
+    <div class="grid-2"><div class="card full"><div class="card-title"><span class="dot" style="background:var(--green)"></span>Carrier Comparison</div><div class="chart-wrap tall"><canvas id="c-carrier-compare"></canvas></div></div></div>
+    <div class="card"><div class="card-title">Carrier Details</div><div style="overflow-x:auto"><table id="carrier-table"><thead><tr><th>Carrier</th><th>Type</th><th>Shipments</th><th>Delivered</th><th>On-Time %</th><th>Avg Days</th><th>Avg Cost</th><th>Returns</th><th>Exceptions</th></tr></thead><tbody></tbody></table></div></div>
+</div>
+
+<!-- ==================== DELIVERY ==================== -->
+<div id="delivery" class="section">
+    <div class="page-header"><div><div class="page-title">Delivery Performance</div></div></div>
+    <div class="kpi-grid" id="del-kpis"></div>
+    <div class="grid-2"><div class="card"><div class="card-title"><span class="dot" style="background:var(--green)"></span>On-Time Rate Trend</div><div class="chart-wrap"><canvas id="c-ontime-trend"></canvas></div></div><div class="card"><div class="card-title"><span class="dot" style="background:var(--accent)"></span>Delivery Time Distribution</div><div class="chart-wrap"><canvas id="c-del-dist"></canvas></div></div></div>
+    <div class="grid-2"><div class="card"><div class="card-title">Speed by Service Level</div><div class="chart-wrap"><canvas id="c-del-svc"></canvas></div></div><div class="card"><div class="card-title">On-Time by Carrier</div><div class="chart-wrap"><canvas id="c-del-carrier"></canvas></div></div></div>
+</div>
+
+<!-- ==================== GEOGRAPHIC ==================== -->
+<div id="geographic" class="section">
+    <div class="page-header"><div><div class="page-title">Geographic Analytics</div></div></div>
+    <div class="grid-2"><div class="card"><div class="card-title"><span class="dot" style="background:var(--accent)"></span>Shipments by Region</div><div class="chart-wrap"><canvas id="c-geo-region"></canvas></div></div><div class="card"><div class="card-title"><span class="dot" style="background:var(--green)"></span>Revenue by Region</div><div class="chart-wrap"><canvas id="c-geo-rev"></canvas></div></div></div>
+    <div class="grid-2"><div class="card"><div class="card-title">Top Destination States</div><div class="chart-wrap tall"><canvas id="c-geo-states"></canvas></div></div><div class="card"><div class="card-title">Regional Performance</div><div style="overflow-x:auto"><table id="geo-table"><thead><tr><th>Region</th><th>Shipments</th><th>Revenue</th><th>Avg Days</th><th>On-Time %</th></tr></thead><tbody></tbody></table></div></div></div>
+    <div class="card"><div class="card-title">Popular Routes</div><div style="overflow-x:auto"><table id="routes-table"><thead><tr><th>Origin</th><th>Destination</th><th>Volume</th><th>Avg Cost</th><th>Avg Days</th></tr></thead><tbody></tbody></table></div></div>
+</div>
+
+<!-- ==================== COSTS ==================== -->
+<div id="costs" class="section">
+    <div class="page-header"><div><div class="page-title">Cost Analysis</div></div></div>
+    <div class="kpi-grid" id="cost-kpis"></div>
+    <div class="grid-2"><div class="card full"><div class="card-title"><span class="dot" style="background:var(--accent)"></span>Daily Revenue: Shipping vs Insurance</div><div class="chart-wrap"><canvas id="c-cost-daily"></canvas></div></div></div>
+    <div class="grid-2"><div class="card"><div class="card-title">Avg Cost by Service Level</div><div class="chart-wrap"><canvas id="c-cost-svc"></canvas></div></div><div class="card"><div class="card-title">Avg Cost by Weight Bracket</div><div class="chart-wrap"><canvas id="c-cost-weight"></canvas></div></div></div>
+</div>
+
+<!-- ==================== CUSTOMERS ==================== -->
+<div id="customers" class="section">
+    <div class="page-header"><div><div class="page-title">Customer Insights</div></div></div>
+    <div class="grid-2"><div class="card"><div class="card-title">Revenue by Tier</div><div class="chart-wrap"><canvas id="c-cust-tier"></canvas></div></div><div class="card"><div class="card-title">Shipments by Tier</div><div class="chart-wrap"><canvas id="c-cust-tier-vol"></canvas></div></div></div>
+    <div class="card"><div class="card-title">Top 20 Customers</div><div style="overflow-x:auto"><table id="cust-table"><thead><tr><th>Customer</th><th>Company</th><th>Tier</th><th>Location</th><th>Shipments</th><th>Total Spent</th><th>Avg Cost</th></tr></thead><tbody></tbody></table></div></div>
+</div>
+
+<!-- ==================== CLAIMS ==================== -->
+<div id="claims" class="section">
+    <div class="page-header"><div><div class="page-title">Claims & Issues</div></div></div>
+    <div class="kpi-grid" id="claims-kpis"></div>
+    <div class="grid-3"><div class="card"><div class="card-title">By Type</div><div class="chart-wrap"><canvas id="c-claims-type"></canvas></div></div><div class="card"><div class="card-title">By Status</div><div class="chart-wrap"><canvas id="c-claims-status"></canvas></div></div><div class="card"><div class="card-title">Top Reasons</div><div class="chart-wrap"><canvas id="c-claims-reason"></canvas></div></div></div>
+</div>
+
+<!-- ==================== WAREHOUSES ==================== -->
+<div id="warehouses" class="section">
+    <div class="page-header"><div><div class="page-title">Warehouses</div></div></div>
+    <div class="grid-2"><div class="card"><div class="card-title">Utilization</div><div class="chart-wrap tall"><canvas id="c-wh-util"></canvas></div></div><div class="card"><div class="card-title">Outbound Shipments</div><div class="chart-wrap tall"><canvas id="c-wh-vol"></canvas></div></div></div>
+    <div class="card"><div class="card-title">Details</div><div style="overflow-x:auto"><table id="wh-table"><thead><tr><th>Name</th><th>Location</th><th>Region</th><th>Capacity</th><th>Load</th><th>Utilization</th><th>Shipments</th></tr></thead><tbody></tbody></table></div></div>
+</div>
+
+<!-- ==================== ACCOUNT ==================== -->
+<div id="account" class="section">
+    <div class="page-header"><div><div class="page-title">My Account</div><div class="page-subtitle">Manage your profile and API access</div></div></div>
+    <div class="grid-2">
+        <div class="card">
+            <div class="card-title">Profile</div>
+            <div class="form-group"><label class="form-label">Name</label><input class="form-input" id="acct-name"></div>
+            <div class="form-group"><label class="form-label">Email</label><input class="form-input" id="acct-email" disabled></div>
+            <div class="form-group"><label class="form-label">Company</label><input class="form-input" id="acct-company"></div>
+            <div class="form-group"><label class="form-label">Phone</label><input class="form-input" id="acct-phone"></div>
+            <button class="btn btn-primary" onclick="updateAccount()">Save Changes</button>
+        </div>
+        <div class="card">
+            <div class="card-title">Account Details</div>
+            <div style="margin-bottom:14px"><span class="form-label">Plan</span><div id="acct-plan" style="font-size:16px;font-weight:700;margin-top:4px"></div></div>
+            <div style="margin-bottom:14px"><span class="form-label">Role</span><div id="acct-role" style="margin-top:4px"></div></div>
+            <div style="margin-bottom:14px"><span class="form-label">Member Since</span><div id="acct-since" style="margin-top:4px;color:var(--text-muted)"></div></div>
+            <hr style="border-color:var(--border);margin:16px 0">
+            <div class="card-title">API Key</div>
+            <div style="display:flex;gap:8px;align-items:center"><code id="acct-apikey" style="background:var(--surface-2);padding:8px 12px;border-radius:6px;font-size:12px;flex:1;word-break:break-all"></code><button class="btn btn-sm btn-secondary" onclick="copyApiKey()">Copy</button></div>
+            <button class="btn btn-sm btn-danger" style="margin-top:10px" onclick="regenApiKey()">Regenerate Key</button>
+        </div>
+    </div>
+    <div class="card" style="margin-top:16px">
+        <div class="card-title">Recent Activity</div>
+        <div style="overflow-x:auto"><table id="activity-table"><thead><tr><th>Action</th><th>Details</th><th>Date</th></tr></thead><tbody></tbody></table></div>
+    </div>
+</div>
+
+<!-- ==================== PAYMENT METHODS ==================== -->
+<div id="payments" class="section">
+    <div class="page-header"><div><div class="page-title">Payment Methods</div><div class="page-subtitle">Manage how you pay for shipping</div></div><button class="btn btn-primary" onclick="showAddPayment()">+ Add Payment Method</button></div>
+    <div id="pm-list"></div>
+</div>
+
+<!-- ==================== BILLING ==================== -->
+<div id="billing" class="section">
+    <div class="page-header"><div><div class="page-title">Billing & Invoices</div><div class="page-subtitle">View and pay your invoices</div></div></div>
+    <div class="kpi-grid" id="billing-kpis"></div>
+    <div class="card"><div class="card-title">Invoices</div><div style="overflow-x:auto"><table id="invoice-table"><thead><tr><th>Invoice #</th><th>Period</th><th>Subtotal</th><th>Tax</th><th>Total</th><th>Status</th><th>Due Date</th><th>Actions</th></tr></thead><tbody></tbody></table></div></div>
+</div>
+
+<!-- ==================== NOTIFICATIONS ==================== -->
+<div id="notifications" class="section">
+    <div class="page-header"><div><div class="page-title">Inbox</div><div class="page-subtitle">Notifications & alerts</div></div>
+        <div style="display:flex;gap:8px"><button class="btn btn-secondary btn-sm" onclick="markAllRead()">Mark All Read</button></div>
+    </div>
+    <div class="tabs" id="notif-tabs">
+        <div class="tab active" data-filter="all" onclick="filterNotifs('all',this)">All</div>
+        <div class="tab" data-filter="shipping" onclick="filterNotifs('shipping',this)">Shipping</div>
+        <div class="tab" data-filter="billing" onclick="filterNotifs('billing',this)">Billing</div>
+        <div class="tab" data-filter="alert" onclick="filterNotifs('alert',this)">Alerts</div>
+        <div class="tab" data-filter="system" onclick="filterNotifs('system',this)">System</div>
+        <div class="tab" data-filter="starred" onclick="filterNotifs('starred',this)">Starred</div>
+        <div class="tab" data-filter="archived" onclick="filterNotifs('archived',this)">Archive</div>
+    </div>
+    <div style="display:grid;grid-template-columns:380px 1fr;gap:16px;min-height:500px" id="inbox-layout">
+        <div class="card" style="padding:0;overflow:hidden">
+            <div id="notif-list" style="max-height:600px;overflow-y:auto"></div>
+        </div>
+        <div class="card" id="notif-detail" style="overflow-y:auto;max-height:600px">
+            <div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:14px">
+                <div style="text-align:center">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:48px;height:48px;margin-bottom:12px;opacity:.4"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                    <div>Select a notification to read</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== SETTINGS ==================== -->
+<div id="settings" class="section">
+    <div class="page-header"><div><div class="page-title">Settings</div></div></div>
+    <div class="card" style="max-width:600px">
+        <div class="card-title">Saved Addresses</div>
+        <div id="addr-list"></div>
+        <button class="btn btn-secondary" style="margin-top:12px" onclick="showAddAddress()">+ Add Address</button>
+    </div>
+</div>
+
+</main>
+
+<script>
+const API="", charts={};
+Chart.defaults.color="#7a809a";Chart.defaults.borderColor="#252b3a";Chart.defaults.font.family="'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif";Chart.defaults.font.size=11;
+const C={accent:"#4f8cff",green:"#34d399",red:"#f87171",orange:"#fbbf24",purple:"#a78bfa",cyan:"#22d3ee",pink:"#f472b6",blue2:"#60a5fa"};
+const PALETTE=[C.accent,C.green,C.orange,C.purple,C.cyan,C.pink,C.red,C.blue2];
+const SC={delivered:C.green,in_transit:C.accent,out_for_delivery:C.purple,returned:C.red,exception:C.orange,label_created:"#555",picked_up:C.cyan};
+function fmt$(n){return"$"+Number(n).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}
+function fmtN(n){return Number(n).toLocaleString("en-US")}
+function pct(n){return n+"%"}
+async function fetchJSON(u){return(await fetch(API+u)).json()}
+async function postJSON(u,d){return(await fetch(API+u,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(d)})).json()}
+async function putJSON(u,d){return(await fetch(API+u,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(d||{})})).json()}
+async function del(u){return(await fetch(API+u,{method:"DELETE"})).json()}
+function mk(id,cfg){if(charts[id])charts[id].destroy();charts[id]=new Chart(document.getElementById(id).getContext("2d"),cfg)}
+function toast(msg,type){const t=document.getElementById("toast");t.textContent=msg;t.className="toast "+(type||"");t.style.display="block";setTimeout(()=>t.style.display="none",3500)}
+function openModal(html){document.getElementById("modal").innerHTML=html;document.getElementById("modal-overlay").classList.add("active")}
+function closeModal(){document.getElementById("modal-overlay").classList.remove("active")}
+document.getElementById("modal-overlay").addEventListener("click",e=>{if(e.target===e.currentTarget)closeModal()});
+
+function kpiHTML(icon,cls,label,value,sub,subCls){
+    return`<div class="kpi"><div class="kpi-icon ${cls}">${icon}</div><div class="kpi-label">${label}</div><div class="kpi-value">${value}</div>${sub?`<div class="kpi-sub ${subCls||'neutral'}">${sub}</div>`:""}</div>`;
+}
+const svgS='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>';
+const svg$='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>';
+const svgT='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+const svgV='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>';
+const svgA='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+
+// Nav
+document.querySelectorAll(".nav-item").forEach(item=>{item.addEventListener("click",()=>{document.querySelectorAll(".nav-item").forEach(i=>i.classList.remove("active"));document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));item.classList.add("active");document.getElementById(item.dataset.section).classList.add("active");load(item.dataset.section)})});
+function load(s){const fn={dashboard:loadDashboard,shipments:loadShipments,"create-shipment":loadCreateShipment,tracking:()=>{},
+    "rate-calc":()=>{},carriers:loadCarriers,delivery:loadDelivery,geographic:loadGeo,costs:loadCosts,
+    customers:loadCustomers,claims:loadClaims,warehouses:loadWarehouses,
+    account:loadAccount,payments:loadPayments,billing:loadBilling,
+    notifications:loadNotifications,settings:loadSettings};(fn[s]||function(){})()}
+
+// ===== DASHBOARD =====
+async function loadDashboard(){
+    const[ov,daily,byStatus,bySvc,recent]=await Promise.all([fetchJSON("/api/overview"),fetchJSON("/api/shipments/daily"),fetchJSON("/api/shipments/by-status"),fetchJSON("/api/shipments/by-service"),fetchJSON("/api/shipments/recent?limit=10")]);
+    document.getElementById("dash-kpis").innerHTML=[
+        kpiHTML(svgS,"blue","Total Shipments",fmtN(ov.total_shipments),`${ov.shipment_growth>=0?"+":""}${ov.shipment_growth}%`,ov.shipment_growth>=0?"up":"down"),
+        kpiHTML(svg$,"green","Total Revenue",fmt$(ov.total_revenue),`${ov.revenue_growth>=0?"+":""}${ov.revenue_growth}%`,ov.revenue_growth>=0?"up":"down"),
+        kpiHTML(svgV,"green","On-Time Rate",pct(ov.on_time_rate),fmtN(ov.delivered)+" delivered"),
+        kpiHTML(svgT,"purple","Avg Delivery",ov.avg_delivery_days+" days",fmt$(ov.avg_cost)+" avg cost"),
+        kpiHTML(svgS,"blue","In Transit",fmtN(ov.in_transit)),
+        kpiHTML(svgA,"orange","Returns",fmtN(ov.returned),pct(ov.return_rate)+" rate"),
+        kpiHTML(svgA,"red","Open Claims",fmtN(ov.open_claims),fmtN(ov.exceptions)+" exceptions"),
+    ].join("");
+    mk("c-daily-vol",{type:"bar",data:{labels:daily.map(d=>d.date.slice(5)),datasets:[{label:"Shipments",data:daily.map(d=>d.count),backgroundColor:C.accent+"99",borderRadius:4,yAxisID:"y"},{label:"Revenue",data:daily.map(d=>d.revenue),type:"line",borderColor:C.green,pointRadius:1,tension:.3,yAxisID:"y1"}]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},scales:{y:{position:"left",grid:{display:false}},y1:{position:"right",grid:{display:false}}},plugins:{legend:{labels:{boxWidth:12}}}}});
+    mk("c-dash-status",{type:"doughnut",data:{labels:byStatus.map(d=>d.status),datasets:[{data:byStatus.map(d=>d.count),backgroundColor:byStatus.map(d=>SC[d.status]||"#555")}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"right",labels:{boxWidth:10,padding:8}}}}});
+    mk("c-dash-service",{type:"doughnut",data:{labels:bySvc.map(d=>d.service_level),datasets:[{data:bySvc.map(d=>d.count),backgroundColor:PALETTE}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"right",labels:{boxWidth:10,padding:8}}}}});
+    document.querySelector("#dash-table tbody").innerHTML=recent.map(r=>`<tr><td style="font-family:monospace;font-size:11px">${r.tracking_number}</td><td>${r.customer_name||""}</td><td>${r.carrier_name}</td><td>${r.service_level}</td><td>${r.destination_city}, ${r.destination_state}</td><td><span class="badge badge-${r.status}">${r.status.replace(/_/g," ")}</span></td><td>${fmt$(r.shipping_cost+r.insurance_cost)}</td><td style="color:var(--text-muted)">${new Date(r.created_at).toLocaleDateString()}</td></tr>`).join("");
+    loadNotifBadge();
+}
+
+// ===== SHIPMENTS =====
+async function loadShipments(){
+    const[ov,daily,byStatus,bySvc,byPkg,funnel]=await Promise.all([fetchJSON("/api/overview"),fetchJSON("/api/shipments/daily"),fetchJSON("/api/shipments/by-status"),fetchJSON("/api/shipments/by-service"),fetchJSON("/api/shipments/by-package"),fetchJSON("/api/funnel")]);
+    document.getElementById("ship-kpis").innerHTML=[kpiHTML(svgS,"blue","Total",fmtN(ov.total_shipments)),kpiHTML(svgS,"blue","This Month",fmtN(ov.month_shipments),`${ov.shipment_growth>=0?"+":""}${ov.shipment_growth}%`,ov.shipment_growth>=0?"up":"down"),kpiHTML(svgS,"purple","In Transit",fmtN(ov.in_transit)),kpiHTML(svgV,"green","Delivered",fmtN(ov.delivered))].join("");
+    mk("c-ship-daily",{type:"bar",data:{labels:daily.map(d=>d.date.slice(5)),datasets:[{data:daily.map(d=>d.count),backgroundColor:C.accent,borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});
+    mk("c-ship-status",{type:"doughnut",data:{labels:byStatus.map(d=>d.status),datasets:[{data:byStatus.map(d=>d.count),backgroundColor:byStatus.map(d=>SC[d.status]||"#555")}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom",labels:{boxWidth:10,padding:6,font:{size:10}}}}}});
+    mk("c-ship-svc",{type:"doughnut",data:{labels:bySvc.map(d=>d.service_level),datasets:[{data:bySvc.map(d=>d.count),backgroundColor:PALETTE}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom",labels:{boxWidth:10,padding:6,font:{size:10}}}}}});
+    mk("c-ship-pkg",{type:"doughnut",data:{labels:byPkg.map(d=>d.package_type),datasets:[{data:byPkg.map(d=>d.count),backgroundColor:PALETTE}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom",labels:{boxWidth:10,padding:6,font:{size:10}}}}}});
+    const max=funnel[0]?.count||1;const colors=[C.accent,C.cyan,C.purple,C.orange,C.green];
+    document.getElementById("ship-funnel").innerHTML=funnel.map((s,i)=>{const p=Math.max(Math.round(s.count/max*100),3);const cv=i>0?Math.round(s.count/funnel[i-1].count*100):100;return`<div class="funnel-row"><div class="funnel-label">${s.step}</div><div class="funnel-bar-bg"><div class="funnel-bar" style="width:${p}%;background:${colors[i]}">${fmtN(s.count)} (${cv}%)</div></div></div>`}).join("");
+}
+
+// ===== CREATE SHIPMENT =====
+async function loadCreateShipment(){
+    const[carriers,addrs]=await Promise.all([fetchJSON("/api/carriers/list"),fetchJSON("/api/addresses")]);
+    const sel=document.getElementById("cs-carrier");sel.innerHTML=carriers.map(c=>`<option value="${c.id}">${c.name} (${c.type})</option>`).join("");
+    const addrSel=document.getElementById("cs-saved-addr");addrSel.innerHTML='<option value="">-- Use saved address --</option>'+addrs.map(a=>`<option value='${JSON.stringify(a)}'>${a.label}: ${a.name}, ${a.city} ${a.state}</option>`).join("");
+    addrSel.onchange=function(){if(this.value){const a=JSON.parse(this.value);document.getElementById("cs-name").value=a.name;document.getElementById("cs-address").value=a.address;document.getElementById("cs-city").value=a.city;document.getElementById("cs-state").value=a.state;document.getElementById("cs-zip").value=a.zip}};
+}
+async function submitShipment(){
+    const d={destination_name:document.getElementById("cs-name").value,destination_address:document.getElementById("cs-address").value,destination_city:document.getElementById("cs-city").value,destination_state:document.getElementById("cs-state").value,destination_zip:document.getElementById("cs-zip").value,weight_lbs:parseFloat(document.getElementById("cs-weight").value)||1,declared_value:parseFloat(document.getElementById("cs-value").value)||0,dimensions:document.getElementById("cs-dims").value,package_type:document.getElementById("cs-pkg").value,service_level:document.getElementById("cs-svc").value,carrier_id:parseInt(document.getElementById("cs-carrier").value),special_instructions:document.getElementById("cs-instructions").value};
+    if(!d.destination_city||!d.destination_state){toast("City and state are required","error");return}
+    const r=await postJSON("/api/shipments/create",d);
+    if(r.error){toast(r.error,"error");return}
+    const el=document.getElementById("cs-result");el.style.display="block";
+    el.innerHTML=`<div class="card" style="border-color:var(--green)"><div style="font-size:16px;font-weight:700;color:var(--green);margin-bottom:8px">Shipment Created!</div><div style="font-size:13px"><strong>Tracking:</strong> <code>${r.tracking_number}</code><br><strong>Cost:</strong> ${fmt$(r.cost)} + ${fmt$(r.insurance)} insurance<br><strong>Estimated:</strong> ${r.quoted_days} days<br><strong>Status:</strong> <span class="badge badge-label_created">label created</span></div></div>`;
+    toast("Shipment created successfully!","success");
+}
+
+// ===== TRACKING =====
+async function trackPackage(){
+    const tn=document.getElementById("track-input").value.trim();if(!tn){toast("Enter a tracking number","error");return}
+    const res=await fetch(API+"/api/track/"+tn);
+    if(!res.ok){document.getElementById("track-result").innerHTML='<div class="card" style="border-color:var(--red)"><p style="color:var(--red);font-weight:600">Tracking number not found</p></div>';return}
+    const d=await res.json();
+    const dotColor=d.status==="delivered"?"green":d.status==="returned"||d.status==="exception"?"red":"";
+    document.getElementById("track-result").innerHTML=`
+        <div class="grid-2"><div class="card">
+            <div class="card-title">Shipment Details</div>
+            <table><tr><td style="color:var(--text-muted);width:140px">Tracking #</td><td><code>${d.tracking_number}</code></td></tr>
+            <tr><td style="color:var(--text-muted)">Status</td><td><span class="badge badge-${d.status}">${d.status.replace(/_/g," ")}</span></td></tr>
+            <tr><td style="color:var(--text-muted)">Carrier</td><td>${d.carrier_name}</td></tr>
+            <tr><td style="color:var(--text-muted)">Service</td><td>${d.service_level}</td></tr>
+            <tr><td style="color:var(--text-muted)">Destination</td><td>${d.destination_city}, ${d.destination_state} ${d.destination_zip||""}</td></tr>
+            <tr><td style="color:var(--text-muted)">Weight</td><td>${d.weight_lbs} lbs</td></tr>
+            <tr><td style="color:var(--text-muted)">Cost</td><td>${fmt$(d.shipping_cost+d.insurance_cost)}</td></tr>
+            <tr><td style="color:var(--text-muted)">Quoted</td><td>${d.quoted_days} days</td></tr>
+            ${d.actual_days?`<tr><td style="color:var(--text-muted)">Actual</td><td>${d.actual_days} days ${d.actual_days<=d.quoted_days?'<span style="color:var(--green)"> (on time)</span>':'<span style="color:var(--red)"> (late)</span>'}</td></tr>`:""}</table>
+        </div><div class="card">
+            <div class="card-title">Tracking Timeline</div>
+            <div class="timeline">${d.events.map((e,i)=>`<div class="timeline-item"><div class="timeline-dot ${i===d.events.length-1?dotColor:""}"></div><div class="timeline-title">${e.event_type.replace(/_/g," ")}</div><div class="timeline-desc">${e.description||""}</div><div class="timeline-time">${new Date(e.created_at).toLocaleString()}</div></div>`).join("")}</div>
+        </div></div>`;
+}
+
+// ===== RATE CALCULATOR =====
+async function calcRates(){
+    const d={weight:parseFloat(document.getElementById("rc-weight").value)||1,origin_region:document.getElementById("rc-origin").value,destination_region:document.getElementById("rc-dest").value,declared_value:parseFloat(document.getElementById("rc-value").value)||0};
+    const rates=await postJSON("/api/rates/calculate",d);
+    if(!rates.length){document.getElementById("rate-results").innerHTML='<p style="color:var(--text-muted)">No rates available for this route.</p>';return}
+    document.getElementById("rate-results").innerHTML=rates.map(r=>`<div class="rate-card"><div class="rate-info"><h4>${r.carrier} — ${r.service_level}</h4><div class="meta">${r.estimated_days_min}-${r.estimated_days_max} business days | Base: ${fmt$(r.base_rate)} | Fuel: ${fmt$(r.fuel_surcharge)}${r.insurance>0?" | Ins: "+fmt$(r.insurance):""}</div></div><div class="rate-price"><div class="total">${fmt$(r.total)}</div></div></div>`).join("");
+}
+
+// ===== CARRIERS =====
+async function loadCarriers(){
+    const data=await fetchJSON("/api/carriers/performance");
+    mk("c-carrier-compare",{type:"bar",data:{labels:data.map(d=>d.carrier),datasets:[{label:"On-Time %",data:data.map(d=>d.on_time_rate),backgroundColor:C.green+"bb",borderRadius:4},{label:"Avg Days",data:data.map(d=>d.avg_days),backgroundColor:C.accent+"bb",borderRadius:4},{label:"Avg Cost ($)",data:data.map(d=>d.avg_cost),backgroundColor:C.orange+"bb",borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:12}}}}});
+    document.querySelector("#carrier-table tbody").innerHTML=data.map(d=>`<tr><td style="font-weight:600">${d.carrier}</td><td>${d.carrier_type}</td><td>${fmtN(d.total_shipments)}</td><td>${fmtN(d.delivered)}</td><td style="color:${d.on_time_rate>=85?"var(--green)":d.on_time_rate>=70?"var(--orange)":"var(--red)"};font-weight:600">${pct(d.on_time_rate)}</td><td>${d.avg_days||"-"}</td><td>${fmt$(d.avg_cost)}</td><td>${d.returns}</td><td>${d.exceptions}</td></tr>`).join("");
+}
+
+// ===== DELIVERY =====
+async function loadDelivery(){
+    const[ov,trend,dist,svc,carriers]=await Promise.all([fetchJSON("/api/overview"),fetchJSON("/api/delivery/ontime-trend"),fetchJSON("/api/delivery/time-distribution"),fetchJSON("/api/shipments/by-service"),fetchJSON("/api/carriers/performance")]);
+    document.getElementById("del-kpis").innerHTML=[kpiHTML(svgV,"green","On-Time",pct(ov.on_time_rate)),kpiHTML(svgT,"purple","Avg Delivery",ov.avg_delivery_days+" days"),kpiHTML(svgS,"blue","Delivered",fmtN(ov.delivered)),kpiHTML(svgA,"red","Return Rate",pct(ov.return_rate))].join("");
+    mk("c-ontime-trend",{type:"line",data:{labels:trend.map(d=>d.date.slice(5)),datasets:[{data:trend.map(d=>d.rate),borderColor:C.green,backgroundColor:C.green+"18",fill:true,tension:.3,pointRadius:1}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{min:50,max:100}}}});
+    mk("c-del-dist",{type:"bar",data:{labels:dist.map(d=>d.days+"d"),datasets:[{data:dist.map(d=>d.count),backgroundColor:C.accent,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});
+    mk("c-del-svc",{type:"bar",data:{labels:svc.map(d=>d.service_level),datasets:[{data:svc.map(d=>d.avg_days),backgroundColor:PALETTE,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});
+    mk("c-del-carrier",{type:"bar",data:{labels:carriers.map(d=>d.carrier),datasets:[{data:carriers.map(d=>d.on_time_rate),backgroundColor:carriers.map(d=>d.on_time_rate>=85?C.green:d.on_time_rate>=70?C.orange:C.red),borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:"y",plugins:{legend:{display:false}},scales:{x:{min:0,max:100}}}});
+}
+
+// ===== GEOGRAPHIC =====
+async function loadGeo(){
+    const[regions,states,routes]=await Promise.all([fetchJSON("/api/regions/volume"),fetchJSON("/api/regions/top-states"),fetchJSON("/api/routes/popular")]);
+    mk("c-geo-region",{type:"bar",data:{labels:regions.map(d=>d.region),datasets:[{data:regions.map(d=>d.shipments),backgroundColor:PALETTE,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});
+    mk("c-geo-rev",{type:"doughnut",data:{labels:regions.map(d=>d.region),datasets:[{data:regions.map(d=>d.revenue),backgroundColor:PALETTE}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"right",labels:{boxWidth:10,padding:8}}}}});
+    mk("c-geo-states",{type:"bar",data:{labels:states.map(d=>d.state),datasets:[{data:states.map(d=>d.count),backgroundColor:C.accent,borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:"y",plugins:{legend:{display:false}}}});
+    document.querySelector("#geo-table tbody").innerHTML=regions.map(d=>`<tr><td style="font-weight:600">${d.region}</td><td>${fmtN(d.shipments)}</td><td>${fmt$(d.revenue)}</td><td>${d.avg_days||"-"}</td><td style="color:${d.on_time_rate>=80?"var(--green)":"var(--orange)"}">${pct(d.on_time_rate)}</td></tr>`).join("");
+    document.querySelector("#routes-table tbody").innerHTML=routes.map(d=>`<tr><td>${d.origin}</td><td>${d.destination}</td><td style="font-weight:600">${fmtN(d.volume)}</td><td>${fmt$(d.avg_cost)}</td><td>${d.avg_days||"-"}</td></tr>`).join("");
+}
+
+// ===== COSTS =====
+async function loadCosts(){
+    const[ov,daily,bd]=await Promise.all([fetchJSON("/api/overview"),fetchJSON("/api/revenue/daily"),fetchJSON("/api/costs/breakdown")]);
+    document.getElementById("cost-kpis").innerHTML=[kpiHTML(svg$,"green","Total Revenue",fmt$(ov.total_revenue)),kpiHTML(svg$,"blue","This Month",fmt$(ov.month_revenue),`${ov.revenue_growth>=0?"+":""}${ov.revenue_growth}%`,ov.revenue_growth>=0?"up":"down"),kpiHTML(svg$,"purple","Avg Cost",fmt$(ov.avg_cost))].join("");
+    mk("c-cost-daily",{type:"bar",data:{labels:daily.map(d=>d.date.slice(5)),datasets:[{label:"Shipping",data:daily.map(d=>d.shipping),backgroundColor:C.accent+"aa",borderRadius:3,stack:"s"},{label:"Insurance",data:daily.map(d=>d.insurance),backgroundColor:C.green+"aa",borderRadius:3,stack:"s"}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:12}}},scales:{x:{stacked:true},y:{stacked:true}}}});
+    mk("c-cost-svc",{type:"bar",data:{labels:bd.by_service.map(d=>d.service_level),datasets:[{label:"Shipping",data:bd.by_service.map(d=>d.avg_shipping),backgroundColor:C.accent,borderRadius:4},{label:"Insurance",data:bd.by_service.map(d=>d.avg_insurance),backgroundColor:C.green,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:12}}}}});
+    mk("c-cost-weight",{type:"bar",data:{labels:bd.by_weight.map(d=>d.weight_bracket),datasets:[{data:bd.by_weight.map(d=>d.avg_cost),backgroundColor:C.orange,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});
+}
+
+// ===== CUSTOMERS =====
+async function loadCustomers(){
+    const[tiers,top]=await Promise.all([fetchJSON("/api/customers/by-tier"),fetchJSON("/api/customers/top")]);
+    const tc={standard:C.accent,premium:C.green,enterprise:C.orange};
+    mk("c-cust-tier",{type:"doughnut",data:{labels:tiers.map(d=>d.tier),datasets:[{data:tiers.map(d=>d.revenue),backgroundColor:tiers.map(d=>tc[d.tier]||C.pink)}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom",labels:{boxWidth:10}}}}});
+    mk("c-cust-tier-vol",{type:"bar",data:{labels:tiers.map(d=>d.tier),datasets:[{label:"Customers",data:tiers.map(d=>d.customers),backgroundColor:C.accent,borderRadius:4},{label:"Shipments",data:tiers.map(d=>d.shipments),backgroundColor:C.green,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:12}}}}});
+    document.querySelector("#cust-table tbody").innerHTML=top.map(d=>`<tr><td style="font-weight:600">${d.name}</td><td>${d.company||"-"}</td><td><span class="badge badge-${d.tier==="enterprise"?"delivered":d.tier==="premium"?"in_transit":"label_created"}">${d.tier}</span></td><td>${d.city}, ${d.state}</td><td>${fmtN(d.shipments)}</td><td style="font-weight:600">${fmt$(d.total_spent)}</td><td>${fmt$(d.avg_cost)}</td></tr>`).join("");
+}
+
+// ===== CLAIMS =====
+async function loadClaims(){
+    const d=await fetchJSON("/api/claims/summary");
+    document.getElementById("claims-kpis").innerHTML=[kpiHTML(svgA,"orange","Open",fmtN(d.by_status.find(x=>x.status==="open")?.count||0)),kpiHTML(svgV,"green","Resolved",fmtN(d.by_status.find(x=>x.status==="resolved")?.count||0)),kpiHTML(svg$,"red","Total Paid",fmt$(d.total_paid))].join("");
+    mk("c-claims-type",{type:"doughnut",data:{labels:d.by_type.map(x=>x.type),datasets:[{data:d.by_type.map(x=>x.count),backgroundColor:PALETTE}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom",labels:{boxWidth:10,padding:6,font:{size:10}}}}}});
+    mk("c-claims-status",{type:"doughnut",data:{labels:d.by_status.map(x=>x.status),datasets:[{data:d.by_status.map(x=>x.count),backgroundColor:d.by_status.map(x=>({open:C.orange,investigating:C.accent,resolved:C.green,denied:C.red})[x.status]||"#555")}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom",labels:{boxWidth:10,padding:6,font:{size:10}}}}}});
+    mk("c-claims-reason",{type:"bar",data:{labels:d.by_reason.map(x=>x.reason.length>25?x.reason.slice(0,25)+"...":x.reason),datasets:[{data:d.by_reason.map(x=>x.count),backgroundColor:C.red,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:"y",plugins:{legend:{display:false}}}});
+}
+
+// ===== WAREHOUSES =====
+async function loadWarehouses(){
+    const data=await fetchJSON("/api/warehouses");
+    mk("c-wh-util",{type:"bar",data:{labels:data.map(d=>d.name),datasets:[{data:data.map(d=>d.utilization),backgroundColor:data.map(d=>d.utilization>85?C.red:d.utilization>70?C.orange:C.green),borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:"y",plugins:{legend:{display:false}},scales:{x:{min:0,max:100}}}});
+    mk("c-wh-vol",{type:"bar",data:{labels:data.map(d=>d.name),datasets:[{data:data.map(d=>d.shipments_out),backgroundColor:C.accent,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:"y",plugins:{legend:{display:false}}}});
+    document.querySelector("#wh-table tbody").innerHTML=data.map(d=>{const uc=d.utilization>85?"var(--red)":d.utilization>70?"var(--orange)":"var(--green)";return`<tr><td style="font-weight:600">${d.name}</td><td>${d.city}, ${d.state}</td><td>${d.region}</td><td>${fmtN(d.capacity)}</td><td>${fmtN(d.current_load)}</td><td><div style="display:flex;align-items:center;gap:8px"><div class="progress-bg" style="width:80px"><div class="progress-fill" style="width:${d.utilization}%;background:${uc}"></div></div><span style="color:${uc};font-weight:600;font-size:11px">${d.utilization}%</span></div></td><td>${fmtN(d.shipments_out)}</td></tr>`}).join("");
+}
+
+// ===== ACCOUNT =====
+async function loadAccount(){
+    const[me,activity]=await Promise.all([fetchJSON("/api/auth/me"),fetchJSON("/api/activity")]);
+    document.getElementById("acct-name").value=me.name||"";document.getElementById("acct-email").value=me.email||"";
+    document.getElementById("acct-company").value=me.company||"";document.getElementById("acct-phone").value=me.phone||"";
+    document.getElementById("acct-plan").textContent=(me.plan||"").toUpperCase();
+    document.getElementById("acct-role").textContent=me.role||"user";
+    document.getElementById("acct-since").textContent=me.created_at?new Date(me.created_at).toLocaleDateString():"";
+    document.getElementById("acct-apikey").textContent=me.api_key||"";
+    document.querySelector("#activity-table tbody").innerHTML=activity.slice(0,15).map(a=>`<tr><td><span class="badge badge-${a.action.includes("paid")?"paid":a.action.includes("created")?"in_transit":"label_created"}">${a.action.replace(/_/g," ")}</span></td><td>${a.details||"-"}</td><td style="color:var(--text-muted)">${new Date(a.created_at).toLocaleString()}</td></tr>`).join("");
+}
+async function updateAccount(){
+    await putJSON("/api/auth/update",{name:document.getElementById("acct-name").value,company:document.getElementById("acct-company").value,phone:document.getElementById("acct-phone").value});
+    toast("Account updated!","success");
+}
+function copyApiKey(){navigator.clipboard.writeText(document.getElementById("acct-apikey").textContent);toast("API key copied!","success")}
+async function regenApiKey(){if(!confirm("Regenerate API key? Old key will stop working."))return;const r=await postJSON("/api/auth/regenerate-key",{});document.getElementById("acct-apikey").textContent=r.api_key;toast("API key regenerated","success")}
+
+// ===== PAYMENT METHODS =====
+async function loadPayments(){
+    const pms=await fetchJSON("/api/payment-methods");
+    const icons={bank_account:"bank",credit_card:"card",debit_card:"card",paypal:"paypal",wire:"wire"};
+    const iconText={bank_account:"BK",credit_card:"CC",debit_card:"DC",paypal:"PP",wire:"WT"};
+    document.getElementById("pm-list").innerHTML=pms.length?pms.map(p=>`<div class="pm-card ${p.is_default?"default":""}">
+        <div class="pm-icon ${icons[p.type]||"card"}">${iconText[p.type]||"??"}</div>
+        <div class="pm-info"><div class="label">${p.label}</div><div class="meta">${p.type.replace(/_/g," ")} ${p.is_default?"· Default":""} ${p.verified?"· Verified":"· Pending verification"} ${p.exp_year?" · Exp "+p.exp_month+"/"+p.exp_year:""}</div></div>
+        <div class="pm-actions">${p.is_default?"":`<button class="btn btn-sm btn-secondary" onclick="setDefaultPM(${p.id})">Set Default</button>`}<button class="btn btn-sm btn-danger" onclick="removePM(${p.id})">Remove</button></div>
+    </div>`).join(""):'<p style="color:var(--text-muted)">No payment methods added yet.</p>';
+}
+async function setDefaultPM(id){await putJSON(`/api/payment-methods/${id}/default`);toast("Default updated","success");loadPayments()}
+async function removePM(id){if(!confirm("Remove this payment method?"))return;await del(`/api/payment-methods/${id}`);toast("Payment method removed","success");loadPayments()}
+function showAddPayment(){
+    openModal(`<h3>Add Payment Method</h3>
+        <div class="form-group"><label class="form-label">Type</label><select class="form-select" id="pm-type" onchange="pmTypeChanged()"><option value="credit_card">Credit Card</option><option value="debit_card">Debit Card</option><option value="bank_account">Bank Account (ACH)</option><option value="paypal">PayPal</option><option value="wire">Wire Transfer</option></select></div>
+        <div id="pm-fields"></div>
+        <div class="form-group"><label class="form-label">Billing Address</label><input class="form-input" id="pm-billing" placeholder="123 Main St, City, State ZIP"></div>
+        <div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-primary" onclick="addPayment()">Add Payment Method</button><button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);
+    pmTypeChanged();
+}
+function pmTypeChanged(){
+    const t=document.getElementById("pm-type").value;let h="";
+    if(t==="credit_card"||t==="debit_card"){
+        h=`<div class="form-group"><label class="form-label">Card Number (last 4 digits)</label><input class="form-input" id="pm-last4" maxlength="4" placeholder="1234"></div>
+        <div class="form-group"><label class="form-label">Card Brand</label><select class="form-select" id="pm-brand"><option>Visa</option><option>Mastercard</option><option>Amex</option><option>Discover</option></select></div>
+        <div class="form-row"><div class="form-group"><label class="form-label">Exp Month</label><input class="form-input" id="pm-exp-m" type="number" min="1" max="12" placeholder="MM"></div><div class="form-group"><label class="form-label">Exp Year</label><input class="form-input" id="pm-exp-y" type="number" min="2024" placeholder="YYYY"></div></div>`;
+    } else if(t==="bank_account"){
+        h=`<div class="form-group"><label class="form-label">Bank Name</label><input class="form-input" id="pm-bank" placeholder="Chase, Bank of America, etc."></div>
+        <div class="form-group"><label class="form-label">Account Number (last 4)</label><input class="form-input" id="pm-last4" maxlength="4" placeholder="1234"></div>
+        <div class="form-group"><label class="form-label">Routing Number</label><input class="form-input" id="pm-routing" placeholder="021000021"></div>`;
+    } else if(t==="paypal"){
+        h=`<div class="form-group"><label class="form-label">PayPal Email</label><input class="form-input" id="pm-paypal-email" placeholder="you@email.com"></div>`;
+    } else if(t==="wire"){
+        h=`<div class="form-group"><label class="form-label">Bank Name</label><input class="form-input" id="pm-bank" placeholder="Bank name"></div>
+        <div class="form-group"><label class="form-label">Account Number (last 4)</label><input class="form-input" id="pm-last4" maxlength="4" placeholder="1234"></div>
+        <div class="form-group"><label class="form-label">Routing/SWIFT</label><input class="form-input" id="pm-routing" placeholder="Routing or SWIFT code"></div>`;
+    }
+    document.getElementById("pm-fields").innerHTML=h;
+}
+async function addPayment(){
+    const t=document.getElementById("pm-type").value;
+    const d={type:t,billing_address:document.getElementById("pm-billing").value};
+    const l4=document.getElementById("pm-last4");if(l4)d.last_four=l4.value;
+    const bank=document.getElementById("pm-bank");if(bank)d.bank_name=bank.value;
+    const routing=document.getElementById("pm-routing");if(routing)d.routing_number=routing.value;
+    const brand=document.getElementById("pm-brand");if(brand)d.card_brand=brand.value;
+    const expm=document.getElementById("pm-exp-m");if(expm)d.exp_month=parseInt(expm.value);
+    const expy=document.getElementById("pm-exp-y");if(expy)d.exp_year=parseInt(expy.value);
+    const ppe=document.getElementById("pm-paypal-email");if(ppe)d.paypal_email=ppe.value;
+    const r=await postJSON("/api/payment-methods",d);
+    if(r.error){toast(r.error,"error");return}
+    closeModal();toast("Payment method added!","success");loadPayments();
+}
+
+// ===== BILLING =====
+async function loadBilling(){
+    const[summary,invoices]=await Promise.all([fetchJSON("/api/billing/summary"),fetchJSON("/api/invoices")]);
+    document.getElementById("billing-kpis").innerHTML=[
+        kpiHTML(svg$,"green","Total Paid",fmt$(summary.total_paid)),
+        kpiHTML(svg$,"orange","Outstanding",fmt$(summary.outstanding)),
+        kpiHTML(svgA,"red","Overdue",fmtN(summary.overdue_count)),
+        kpiHTML(svgV,"blue","Payment Methods",fmtN(summary.payment_methods)),
+    ].join("");
+    document.querySelector("#invoice-table tbody").innerHTML=invoices.map(inv=>{
+        const isOverdue=inv.status==="pending"&&new Date(inv.due_date)<new Date();
+        return`<tr><td style="font-weight:600">${inv.invoice_number}</td><td>${inv.period_start} to ${inv.period_end}</td><td>${fmt$(inv.subtotal)}</td><td>${fmt$(inv.tax)}</td><td style="font-weight:600">${fmt$(inv.total)}</td><td><span class="badge badge-${isOverdue?"overdue":inv.status}">${isOverdue?"overdue":inv.status}</span></td><td style="color:var(--text-muted)">${new Date(inv.due_date).toLocaleDateString()}</td><td>${inv.status==="pending"?`<button class="btn btn-sm btn-success" onclick="payInvoice(${inv.id})">Pay Now</button>`:inv.paid_at?"Paid "+new Date(inv.paid_at).toLocaleDateString():"-"}</td></tr>`
+    }).join("");
+}
+async function payInvoice(id){
+    if(!confirm("Pay this invoice with your default payment method?"))return;
+    const r=await postJSON(`/api/invoices/${id}/pay`,{});
+    if(r.error){toast(r.error,"error");return}
+    toast("Invoice paid successfully!","success");loadBilling();
+}
+
+// ===== NOTIFICATIONS (Inbox) =====
+let currentNotifFilter = "all";
+let currentNotifId = null;
+let allNotifs = [];
+
+async function loadNotifications(){
+    let url = "/api/notifications";
+    if(currentNotifFilter === "archived") url += "?archived=1";
+    else if(currentNotifFilter === "starred") url += "?starred=1";
+    else if(currentNotifFilter !== "all") url += "?type=" + currentNotifFilter;
+    allNotifs = await fetchJSON(url);
+    renderInboxList();
+    loadNotifBadge();
+}
+
+function renderInboxList(){
+    const list = document.getElementById("notif-list");
+    if(!allNotifs.length){
+        list.innerHTML='<div style="padding:40px 20px;text-align:center;color:var(--text-muted)">No notifications</div>';
+        return;
+    }
+    list.innerHTML = allNotifs.map(n => {
+        const isActive = currentNotifId === n.id;
+        const timeAgo = getTimeAgo(n.created_at);
+        return `<div class="inbox-item ${n.read?'':'unread'} ${isActive?'active':''}" onclick="openNotif(${n.id})">
+            <div class="inbox-dot ${n.type}"></div>
+            <div class="inbox-content">
+                <div class="inbox-title">${n.title}</div>
+                <div class="inbox-subject">${n.subject || n.message}</div>
+                <div class="inbox-meta">
+                    <span class="inbox-time">${timeAgo}</span>
+                    ${n.priority==='high'?'<span class="priority-badge high">urgent</span>':''}
+                </div>
+            </div>
+            <div class="inbox-star ${n.starred?'starred':''}" onclick="event.stopPropagation();toggleStar(${n.id})">${n.starred?'\u2605':'\u2606'}</div>
+        </div>`;
+    }).join("");
+}
+
+function getTimeAgo(dateStr){
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const mins = Math.floor(diff/60000);
+    if(mins < 60) return mins + "m ago";
+    const hrs = Math.floor(mins/60);
+    if(hrs < 24) return hrs + "h ago";
+    const days = Math.floor(hrs/24);
+    if(days < 7) return days + "d ago";
+    return new Date(dateStr).toLocaleDateString();
+}
+
+async function openNotif(id){
+    currentNotifId = id;
+    const n = await fetchJSON(`/api/notifications/${id}`);
+    // Update list to reflect read state
+    const item = allNotifs.find(x => x.id === id);
+    if(item) item.read = 1;
+    renderInboxList();
+    loadNotifBadge();
+
+    const typeLabels = {shipping:"Shipping",billing:"Billing",alert:"Alert",system:"System",payment:"Payment"};
+    const typeColors = {shipping:"var(--accent)",billing:"var(--green)",alert:"var(--orange)",system:"var(--purple)",payment:"var(--green)"};
+
+    document.getElementById("notif-detail").innerHTML = `
+        <div class="notif-detail-header">
+            <div class="notif-detail-title">${n.title}</div>
+            <div class="notif-detail-subject">${n.subject || ''}</div>
+            <div class="notif-detail-meta">
+                <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> ${n.sender || 'ShipFlow'}</span>
+                <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> ${new Date(n.created_at).toLocaleString()}</span>
+                <span style="color:${typeColors[n.type]||'var(--text-muted)'}"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:currentColor;margin-right:4px"></span>${typeLabels[n.type]||n.type}</span>
+                <span class="priority-badge ${n.priority}">${n.priority}</span>
+            </div>
+        </div>
+        <div style="font-size:13px;color:var(--text);line-height:1.6;margin-bottom:12px">${n.message}</div>
+        ${n.body ? `<div class="notif-detail-body">${escapeHTML(n.body)}</div>` : ''}
+        <div class="notif-detail-actions">
+            ${n.action_label ? `<button class="btn btn-primary btn-sm" onclick="navTo('${n.action_link||'/dashboard'}')">${n.action_label}</button>` : ''}
+            <button class="btn btn-sm ${n.starred?'btn-success':'btn-secondary'}" onclick="toggleStar(${n.id})">${n.starred?'\u2605 Starred':'\u2606 Star'}</button>
+            <button class="btn btn-sm btn-secondary" onclick="archiveNotif(${n.id})">Archive</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteNotif(${n.id})">Delete</button>
+        </div>`;
+}
+
+function escapeHTML(str){
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function navTo(link){
+    if(!link) return;
+    const section = link.replace('/','');
+    const navItem = document.querySelector(`.nav-item[data-section="${section}"]`);
+    if(navItem) navItem.click();
+}
+
+function filterNotifs(filter, el){
+    currentNotifFilter = filter;
+    currentNotifId = null;
+    document.querySelectorAll("#notif-tabs .tab").forEach(t => t.classList.remove("active"));
+    if(el) el.classList.add("active");
+    document.getElementById("notif-detail").innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:14px"><div style="text-align:center"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:48px;height:48px;margin-bottom:12px;opacity:.4"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg><div>Select a notification to read</div></div></div>';
+    loadNotifications();
+}
+
+async function toggleStar(id){
+    const r = await putJSON(`/api/notifications/${id}/star`);
+    const item = allNotifs.find(x => x.id === id);
+    if(item) item.starred = r.starred;
+    renderInboxList();
+    if(currentNotifId === id) openNotif(id);
+}
+async function archiveNotif(id){
+    await putJSON(`/api/notifications/${id}/archive`);
+    toast("Archived","success");
+    currentNotifId = null;
+    document.getElementById("notif-detail").innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted)">Notification archived</div>';
+    loadNotifications();
+}
+async function deleteNotif(id){
+    if(!confirm("Delete this notification?")) return;
+    await del(`/api/notifications/${id}`);
+    toast("Deleted","success");
+    currentNotifId = null;
+    document.getElementById("notif-detail").innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted)">Notification deleted</div>';
+    loadNotifications();
+}
+async function markAllRead(){await putJSON("/api/notifications/read-all");toast("All marked as read","success");loadNotifications()}
+async function loadNotifBadge(){const r=await fetchJSON("/api/notifications/unread-count");const b=document.getElementById("notif-badge");if(r.count>0){b.textContent=r.count;b.style.display="inline"}else{b.style.display="none"}}
+
+// ===== SETTINGS =====
+async function loadSettings(){
+    const addrs=await fetchJSON("/api/addresses");
+    document.getElementById("addr-list").innerHTML=addrs.length?addrs.map(a=>`<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)">
+        <div style="flex:1"><div style="font-weight:600;font-size:13px">${a.label}: ${a.name}</div><div style="font-size:12px;color:var(--text-muted)">${a.address}, ${a.city}, ${a.state} ${a.zip}</div></div>
+        <button class="btn btn-sm btn-danger" onclick="deleteAddr(${a.id})">Delete</button></div>`).join(""):'<p style="color:var(--text-muted)">No saved addresses.</p>';
+}
+async function deleteAddr(id){await del(`/api/addresses/${id}`);toast("Address deleted","success");loadSettings()}
+function showAddAddress(){
+    openModal(`<h3>Add Address</h3>
+        <div class="form-group"><label class="form-label">Label</label><input class="form-input" id="addr-label" placeholder="Home, Office, etc."></div>
+        <div class="form-group"><label class="form-label">Name</label><input class="form-input" id="addr-name" placeholder="Recipient name"></div>
+        <div class="form-group"><label class="form-label">Address</label><input class="form-input" id="addr-address" placeholder="Street address"></div>
+        <div class="form-row-3"><div class="form-group"><label class="form-label">City</label><input class="form-input" id="addr-city"></div><div class="form-group"><label class="form-label">State</label><input class="form-input" id="addr-state" maxlength="2"></div><div class="form-group"><label class="form-label">ZIP</label><input class="form-input" id="addr-zip"></div></div>
+        <div class="form-group"><label class="form-label">Phone</label><input class="form-input" id="addr-phone"></div>
+        <div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-primary" onclick="addAddr()">Save Address</button><button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);
+}
+async function addAddr(){
+    await postJSON("/api/addresses",{label:document.getElementById("addr-label").value,name:document.getElementById("addr-name").value,address:document.getElementById("addr-address").value,city:document.getElementById("addr-city").value,state:document.getElementById("addr-state").value,zip:document.getElementById("addr-zip").value,phone:document.getElementById("addr-phone").value});
+    closeModal();toast("Address saved!","success");loadSettings();
+}
+
+// Init
+loadDashboard();
+</script>
+</body>
+</html>
