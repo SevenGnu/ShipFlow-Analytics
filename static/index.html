@@ -9,6 +9,95 @@
         *{margin:0;padding:0;box-sizing:border-box}
         :root{--bg:#0b0e14;--surface:#151921;--surface-2:#1c2130;--surface-3:#242938;--border:#252b3a;--text:#e2e4ea;--text-muted:#7a809a;--accent:#4f8cff;--accent-dim:rgba(79,140,255,0.12);--green:#34d399;--green-dim:rgba(52,211,153,0.12);--red:#f87171;--red-dim:rgba(248,113,113,0.12);--orange:#fbbf24;--orange-dim:rgba(251,191,36,0.12);--purple:#a78bfa;--purple-dim:rgba(167,139,250,0.12);--cyan:#22d3ee;--pink:#f472b6}
         body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+
+        /* ===== AUTH SCREENS ===== */
+        .auth-screen{display:flex;min-height:100vh;align-items:center;justify-content:center;padding:20px}
+        .auth-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:40px;width:100%;max-width:460px}
+        .auth-card.wide{max-width:700px}
+        .auth-card.extra-wide{max-width:900px}
+        .auth-logo{display:flex;align-items:center;gap:10px;margin-bottom:6px;justify-content:center}
+        .auth-logo svg{width:32px;height:32px;color:var(--accent)}
+        .auth-logo h1{font-size:22px;font-weight:700}
+        .auth-subtitle{text-align:center;color:var(--text-muted);font-size:12px;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:28px}
+        .auth-title{font-size:20px;font-weight:700;text-align:center;margin-bottom:6px}
+        .auth-desc{font-size:13px;color:var(--text-muted);text-align:center;margin-bottom:24px}
+        .auth-tabs{display:flex;gap:0;margin-bottom:24px;border:1px solid var(--border);border-radius:10px;overflow:hidden}
+        .auth-tab{flex:1;padding:10px;text-align:center;font-size:13px;font-weight:600;cursor:pointer;background:var(--surface-2);color:var(--text-muted);transition:all .15s}
+        .auth-tab.active{background:var(--accent);color:#fff}
+        .auth-tab:hover:not(.active){background:var(--surface-3);color:var(--text)}
+        .auth-footer{text-align:center;margin-top:20px;font-size:13px;color:var(--text-muted)}
+        .auth-footer a{color:var(--accent);cursor:pointer;text-decoration:none;font-weight:600}
+        .auth-footer a:hover{text-decoration:underline}
+
+        /* Account type cards */
+        .type-cards{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px}
+        .type-card{background:var(--surface-2);border:2px solid var(--border);border-radius:12px;padding:20px;cursor:pointer;transition:all .2s;text-align:center}
+        .type-card:hover{border-color:var(--accent);background:var(--surface-3)}
+        .type-card.selected{border-color:var(--accent);background:var(--accent-dim)}
+        .type-card-icon{font-size:32px;margin-bottom:10px}
+        .type-card-title{font-size:15px;font-weight:700;margin-bottom:4px}
+        .type-card-desc{font-size:12px;color:var(--text-muted);line-height:1.4}
+
+        /* Onboarding */
+        .onboarding-screen{display:none;min-height:100vh;padding:30px}
+        .onboarding-screen.active{display:block}
+        .onboarding-container{max-width:800px;margin:0 auto}
+        .onboarding-progress{display:flex;gap:4px;margin-bottom:30px}
+        .onboarding-step{flex:1;height:4px;border-radius:2px;background:var(--surface-2)}
+        .onboarding-step.done{background:var(--accent)}
+        .onboarding-step.current{background:var(--accent);opacity:.5}
+        .onboarding-header{text-align:center;margin-bottom:30px}
+        .onboarding-header h2{font-size:24px;font-weight:700;margin-bottom:8px}
+        .onboarding-header p{font-size:14px;color:var(--text-muted)}
+        .onboarding-nav{display:flex;justify-content:space-between;margin-top:30px}
+
+        /* Use case / platform pills */
+        .pill-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:20px}
+        .pill{display:flex;align-items:center;gap:10px;background:var(--surface-2);border:2px solid var(--border);border-radius:10px;padding:12px 14px;cursor:pointer;transition:all .15s}
+        .pill:hover{border-color:var(--accent)}
+        .pill.selected{border-color:var(--accent);background:var(--accent-dim)}
+        .pill-check{width:20px;height:20px;border-radius:6px;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s}
+        .pill.selected .pill-check{background:var(--accent);border-color:var(--accent)}
+        .pill-check svg{width:12px;height:12px;color:#fff;opacity:0}
+        .pill.selected .pill-check svg{opacity:1}
+        .pill-info{flex:1;min-width:0}
+        .pill-name{font-size:13px;font-weight:600}
+        .pill-desc{font-size:11px;color:var(--text-muted);margin-top:1px}
+        .pill-badge{font-size:9px;padding:2px 6px;border-radius:4px;font-weight:700;text-transform:uppercase}
+        .pill-badge.free{background:var(--green-dim);color:var(--green)}
+        .pill-badge.paid{background:var(--orange-dim);color:var(--orange)}
+        .pill-badge.easy{background:var(--green-dim);color:var(--green)}
+        .pill-badge.medium{background:var(--orange-dim);color:var(--orange)}
+        .pill-badge.hard{background:var(--red-dim);color:var(--red)}
+
+        /* Platform categories */
+        .platform-category{margin-bottom:20px}
+        .platform-category-title{font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;padding-left:4px}
+
+        /* Pricing cards */
+        .pricing-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:20px}
+        .pricing-card{background:var(--surface-2);border:2px solid var(--border);border-radius:12px;padding:20px;cursor:pointer;transition:all .2s;position:relative}
+        .pricing-card:hover{border-color:var(--accent)}
+        .pricing-card.selected{border-color:var(--accent);background:var(--accent-dim)}
+        .pricing-card.popular{border-color:var(--green)}
+        .pricing-card .popular-badge{position:absolute;top:-10px;right:14px;background:var(--green);color:#000;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px}
+        .pricing-name{font-size:16px;font-weight:700;margin-bottom:4px}
+        .pricing-price{font-size:28px;font-weight:800;margin-bottom:2px}
+        .pricing-price span{font-size:14px;font-weight:400;color:var(--text-muted)}
+        .pricing-desc{font-size:12px;color:var(--text-muted);margin-bottom:12px}
+        .pricing-features{list-style:none;font-size:12px}
+        .pricing-features li{padding:3px 0;display:flex;align-items:center;gap:6px}
+        .pricing-features li::before{content:"";display:inline-block;width:14px;height:14px;background:var(--green-dim);border-radius:50%;flex-shrink:0}
+
+        /* Enterprise quote */
+        .quote-card{background:var(--surface-2);border:2px solid var(--green);border-radius:12px;padding:24px;text-align:center;margin:20px 0}
+        .quote-price{font-size:36px;font-weight:800;color:var(--green)}
+        .quote-price span{font-size:16px;font-weight:400;color:var(--text-muted)}
+        .quote-actions{display:flex;gap:10px;justify-content:center;margin-top:16px}
+
+        /* Meeting form */
+        .meeting-card{background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:24px;margin-top:16px}
+
         /* Sidebar */
         .sidebar{position:fixed;left:0;top:0;bottom:0;width:230px;background:var(--surface);border-right:1px solid var(--border);padding:20px 14px;display:flex;flex-direction:column;z-index:10;overflow-y:auto}
         .logo{display:flex;align-items:center;gap:10px;margin-bottom:6px}
@@ -75,6 +164,8 @@
         .btn-danger{background:var(--red-dim);color:var(--red)}.btn-danger:hover{background:rgba(248,113,113,.2)}
         .btn-success{background:var(--green-dim);color:var(--green)}
         .btn-sm{padding:5px 10px;font-size:11px}
+        .btn-lg{padding:12px 24px;font-size:15px}
+        .btn:disabled{opacity:.4;cursor:not-allowed}
         /* Forms */
         .form-group{margin-bottom:16px}
         .form-label{display:block;font-size:12px;color:var(--text-muted);margin-bottom:5px;font-weight:500}
@@ -84,6 +175,7 @@
         .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
         .form-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
         textarea.form-input{resize:vertical;min-height:60px}
+        .form-error{color:var(--red);font-size:12px;margin-top:4px}
         /* Funnel */
         .funnel-steps{display:flex;flex-direction:column;gap:10px}
         .funnel-row{display:flex;align-items:center;gap:12px}
@@ -157,20 +249,119 @@
         .notif-detail-actions{display:flex;gap:8px;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)}
         .priority-badge{display:inline-block;padding:1px 6px;border-radius:6px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
         .priority-badge.high{background:var(--red-dim);color:var(--red)}.priority-badge.normal{background:var(--accent-dim);color:var(--accent)}.priority-badge.low{background:rgba(255,255,255,.06);color:var(--text-muted)}
+
+        /* Empty state */
+        .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;text-align:center;color:var(--text-muted)}
+        .empty-state svg{width:64px;height:64px;opacity:.3;margin-bottom:16px}
+        .empty-state h3{font-size:18px;color:var(--text);margin-bottom:8px}
+        .empty-state p{font-size:13px;max-width:400px}
+
+        /* Account type badge */
+        .account-type-badge{display:inline-block;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+        .account-type-badge.personal{background:var(--accent-dim);color:var(--accent)}
+        .account-type-badge.enterprise{background:var(--purple-dim);color:var(--purple)}
+
         /* Responsive */
-        @media(max-width:1000px){.sidebar{display:none}.main{margin-left:0}.grid-2,.grid-3{grid-template-columns:1fr}.form-row,.form-row-3{grid-template-columns:1fr}#inbox-layout{grid-template-columns:1fr !important}}
+        @media(max-width:1000px){.sidebar{display:none}.main{margin-left:0}.grid-2,.grid-3{grid-template-columns:1fr}.form-row,.form-row-3{grid-template-columns:1fr}#inbox-layout{grid-template-columns:1fr !important}.type-cards{grid-template-columns:1fr}.pricing-grid{grid-template-columns:1fr}}
     </style>
 </head>
 <body>
 <div id="toast" class="toast"></div>
 <div id="modal-overlay" class="modal-overlay"><div id="modal" class="modal"></div></div>
 
-<nav class="sidebar">
+<!-- ==================== AUTH SCREEN ==================== -->
+<div id="auth-screen" class="auth-screen">
+    <div class="auth-card" id="auth-card">
+        <div class="auth-logo">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 17H4a2 2 0 01-2-2V5a2 2 0 012-2h16a2 2 0 012 2v10a2 2 0 01-2 2h-1"/><polygon points="12 15 17 21 7 21 12 15"/></svg>
+            <h1>ShipFlow</h1>
+        </div>
+        <div class="auth-subtitle">Shipping Analytics Platform</div>
+
+        <div class="auth-tabs">
+            <div class="auth-tab active" onclick="switchAuthTab('login')">Log In</div>
+            <div class="auth-tab" onclick="switchAuthTab('signup')">Sign Up</div>
+        </div>
+
+        <!-- Login Form -->
+        <div id="login-form">
+            <div class="form-group">
+                <label class="form-label">Email</label>
+                <input class="form-input" id="login-email" type="email" placeholder="you@company.com">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Password</label>
+                <input class="form-input" id="login-password" type="password" placeholder="Enter your password">
+            </div>
+            <div id="login-error" class="form-error" style="display:none;margin-bottom:12px"></div>
+            <button class="btn btn-primary btn-lg" style="width:100%;justify-content:center" onclick="doLogin()">Log In</button>
+            <div class="auth-footer">
+                <p style="margin-top:16px;font-size:11px;color:var(--text-muted)">Demo: admin@shipflow.com / admin123</p>
+            </div>
+        </div>
+
+        <!-- Signup Form -->
+        <div id="signup-form" style="display:none">
+            <div class="form-group">
+                <label class="form-label">Full Name</label>
+                <input class="form-input" id="signup-name" placeholder="Your full name">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Email</label>
+                <input class="form-input" id="signup-email" type="email" placeholder="you@company.com">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Password</label>
+                <input class="form-input" id="signup-password" type="password" placeholder="Min 6 characters">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Phone (optional)</label>
+                <input class="form-input" id="signup-phone" placeholder="555-123-4567">
+            </div>
+
+            <label class="form-label" style="margin-bottom:10px">Account Type</label>
+            <div class="type-cards">
+                <div class="type-card selected" id="type-personal" onclick="selectAccountType('personal')">
+                    <div class="type-card-icon">&#128100;</div>
+                    <div class="type-card-title">Personal</div>
+                    <div class="type-card-desc">For individuals, freelancers, and small sellers. Start free.</div>
+                </div>
+                <div class="type-card" id="type-enterprise" onclick="selectAccountType('enterprise')">
+                    <div class="type-card-icon">&#127970;</div>
+                    <div class="type-card-title">Enterprise</div>
+                    <div class="type-card-desc">For teams and companies. Admin controls, custom pricing.</div>
+                </div>
+            </div>
+
+            <div id="signup-company-field" style="display:none">
+                <div class="form-group">
+                    <label class="form-label">Company Name</label>
+                    <input class="form-input" id="signup-company" placeholder="Your company name">
+                </div>
+            </div>
+
+            <div id="signup-error" class="form-error" style="display:none;margin-bottom:12px"></div>
+            <button class="btn btn-primary btn-lg" style="width:100%;justify-content:center" onclick="doSignup()">Create Account</button>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== ONBOARDING ==================== -->
+<div id="onboarding-screen" class="onboarding-screen">
+    <div class="onboarding-container">
+        <div class="onboarding-progress" id="onboarding-progress"></div>
+        <div id="onboarding-content"></div>
+    </div>
+</div>
+
+<!-- ==================== MAIN APP ==================== -->
+<div id="app-wrapper" style="display:none">
+<nav class="sidebar" id="sidebar-nav">
     <div class="logo">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 17H4a2 2 0 01-2-2V5a2 2 0 012-2h16a2 2 0 012 2v10a2 2 0 01-2 2h-1"/><polygon points="12 15 17 21 7 21 12 15"/></svg>
         <h1>ShipFlow</h1>
     </div>
-    <div class="logo-sub">Shipping Analytics</div>
+    <div class="logo-sub" id="sidebar-plan-badge">Shipping Analytics</div>
 
     <div class="nav-group">Overview</div>
     <div class="nav-item active" data-section="dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Dashboard</div>
@@ -190,19 +381,30 @@
     <div class="nav-item" data-section="claims"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Claims</div>
     <div class="nav-item" data-section="warehouses"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Warehouses</div>
 
+    <div id="nav-enterprise-section" style="display:none">
+        <div class="nav-group">Enterprise</div>
+        <div class="nav-item" data-section="team"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>Team</div>
+        <div class="nav-item" data-section="platforms"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>Platforms</div>
+    </div>
+
     <div class="nav-group">Account</div>
     <div class="nav-item" data-section="account"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>My Account</div>
     <div class="nav-item" data-section="payments"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>Payment Methods</div>
     <div class="nav-item" data-section="billing"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Billing</div>
     <div class="nav-item" data-section="notifications"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>Notifications<span id="notif-badge" class="badge-count" style="display:none">0</span></div>
     <div class="nav-item" data-section="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>Settings</div>
+
+    <div class="sidebar-footer">
+        <div class="nav-item" onclick="doLogout()" style="color:var(--red)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Log Out</div>
+    </div>
 </nav>
 
 <main class="main">
 
 <!-- ==================== DASHBOARD ==================== -->
 <div id="dashboard" class="section active">
-    <div class="page-header"><div><div class="page-title">Dashboard</div><div class="page-subtitle">Shipping operations overview</div></div></div>
+    <div class="page-header"><div><div class="page-title">Dashboard</div><div class="page-subtitle" id="dash-subtitle">Shipping operations overview</div></div><div id="dash-account-badge"></div></div>
+    <div id="dash-welcome" style="display:none"></div>
     <div class="kpi-grid" id="dash-kpis"></div>
     <div class="grid-2"><div class="card full"><div class="card-title"><span class="dot" style="background:var(--accent)"></span>Daily Shipment Volume & Revenue</div><div class="chart-wrap"><canvas id="c-daily-vol"></canvas></div></div></div>
     <div class="grid-2"><div class="card"><div class="card-title"><span class="dot" style="background:var(--green)"></span>Shipment Status</div><div class="chart-wrap"><canvas id="c-dash-status"></canvas></div></div><div class="card"><div class="card-title"><span class="dot" style="background:var(--purple)"></span>Service Level Mix</div><div class="chart-wrap"><canvas id="c-dash-service"></canvas></div></div></div>
@@ -334,6 +536,31 @@
     <div class="card"><div class="card-title">Details</div><div style="overflow-x:auto"><table id="wh-table"><thead><tr><th>Name</th><th>Location</th><th>Region</th><th>Capacity</th><th>Load</th><th>Utilization</th><th>Shipments</th></tr></thead><tbody></tbody></table></div></div>
 </div>
 
+<!-- ==================== TEAM (enterprise) ==================== -->
+<div id="team" class="section">
+    <div class="page-header"><div><div class="page-title">Team Management</div><div class="page-subtitle">Manage team members and admin roles</div></div><button class="btn btn-primary" onclick="showInviteTeam()">+ Invite Member</button></div>
+    <div class="card">
+        <div class="card-title">Admin Roles</div>
+        <div style="margin-bottom:16px;font-size:12px;color:var(--text-muted);line-height:1.6">
+            <strong style="color:var(--text)">Owner</strong> — Full access, billing, can delete account<br>
+            <strong style="color:var(--text)">Admin</strong> — Full access except billing and account deletion<br>
+            <strong style="color:var(--text)">Manager</strong> — Create shipments, manage team, view analytics<br>
+            <strong style="color:var(--text)">Analyst</strong> — View analytics and reports, no shipment creation<br>
+            <strong style="color:var(--text)">Viewer</strong> — Read-only access to dashboards
+        </div>
+    </div>
+    <div class="card" style="margin-top:16px">
+        <div class="card-title">Team Members</div>
+        <div id="team-list"></div>
+    </div>
+</div>
+
+<!-- ==================== PLATFORMS ==================== -->
+<div id="platforms" class="section">
+    <div class="page-header"><div><div class="page-title">Connected Platforms</div><div class="page-subtitle">Manage your integrations</div></div></div>
+    <div id="platforms-list"></div>
+</div>
+
 <!-- ==================== ACCOUNT ==================== -->
 <div id="account" class="section">
     <div class="page-header"><div><div class="page-title">My Account</div><div class="page-subtitle">Manage your profile and API access</div></div></div>
@@ -348,6 +575,7 @@
         </div>
         <div class="card">
             <div class="card-title">Account Details</div>
+            <div style="margin-bottom:14px"><span class="form-label">Account Type</span><div id="acct-type" style="margin-top:4px"></div></div>
             <div style="margin-bottom:14px"><span class="form-label">Plan</span><div id="acct-plan" style="font-size:16px;font-weight:700;margin-top:4px"></div></div>
             <div style="margin-bottom:14px"><span class="form-label">Role</span><div id="acct-role" style="margin-top:4px"></div></div>
             <div style="margin-bottom:14px"><span class="form-label">Member Since</span><div id="acct-since" style="margin-top:4px;color:var(--text-muted)"></div></div>
@@ -416,9 +644,14 @@
 </div>
 
 </main>
+</div><!-- end app-wrapper -->
 
 <script>
 const API="", charts={};
+let currentUser = null;
+let onboardingData = {accountType:'personal', useCases:[], platforms:[], plan:'free'};
+let catalogs = null;
+
 Chart.defaults.color="#7a809a";Chart.defaults.borderColor="#252b3a";Chart.defaults.font.family="'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif";Chart.defaults.font.size=11;
 const C={accent:"#4f8cff",green:"#34d399",red:"#f87171",orange:"#fbbf24",purple:"#a78bfa",cyan:"#22d3ee",pink:"#f472b6",blue2:"#60a5fa"};
 const PALETTE=[C.accent,C.green,C.orange,C.purple,C.cyan,C.pink,C.red,C.blue2];
@@ -426,8 +659,8 @@ const SC={delivered:C.green,in_transit:C.accent,out_for_delivery:C.purple,return
 function fmt$(n){return"$"+Number(n).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}
 function fmtN(n){return Number(n).toLocaleString("en-US")}
 function pct(n){return n+"%"}
-async function fetchJSON(u){return(await fetch(API+u)).json()}
-async function postJSON(u,d){return(await fetch(API+u,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(d)})).json()}
+async function fetchJSON(u){const r=await fetch(API+u);if(r.status===401){showAuth();throw new Error("auth");}return r.json()}
+async function postJSON(u,d){const r=await fetch(API+u,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(d)});return r.json()}
 async function putJSON(u,d){return(await fetch(API+u,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(d||{})})).json()}
 async function del(u){return(await fetch(API+u,{method:"DELETE"})).json()}
 function mk(id,cfg){if(charts[id])charts[id].destroy();charts[id]=new Chart(document.getElementById(id).getContext("2d"),cfg)}
@@ -445,16 +678,499 @@ const svgT='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-wi
 const svgV='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>';
 const svgA='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
 
+// ============================================================
+//  AUTH FLOW
+// ============================================================
+
+function showAuth(){
+    document.getElementById("auth-screen").style.display="flex";
+    document.getElementById("onboarding-screen").classList.remove("active");
+    document.getElementById("app-wrapper").style.display="none";
+}
+
+function showApp(){
+    document.getElementById("auth-screen").style.display="none";
+    document.getElementById("onboarding-screen").classList.remove("active");
+    document.getElementById("app-wrapper").style.display="block";
+    configureUIForUser();
+    loadDashboard();
+}
+
+function switchAuthTab(tab){
+    document.querySelectorAll(".auth-tab").forEach((t,i)=>{t.classList.toggle("active",i===(tab==="login"?0:1))});
+    document.getElementById("login-form").style.display=tab==="login"?"block":"none";
+    document.getElementById("signup-form").style.display=tab==="signup"?"block":"none";
+    document.getElementById("auth-card").classList.toggle("wide",tab==="signup");
+}
+
+function selectAccountType(type){
+    onboardingData.accountType=type;
+    document.getElementById("type-personal").classList.toggle("selected",type==="personal");
+    document.getElementById("type-enterprise").classList.toggle("selected",type==="enterprise");
+    document.getElementById("signup-company-field").style.display=type==="enterprise"?"block":"none";
+}
+
+async function doLogin(){
+    const email=document.getElementById("login-email").value.trim();
+    const pw=document.getElementById("login-password").value;
+    if(!email||!pw){document.getElementById("login-error").textContent="Email and password required";document.getElementById("login-error").style.display="block";return}
+    const r=await postJSON("/api/auth/login",{email,password:pw});
+    if(r.error){document.getElementById("login-error").textContent=r.error;document.getElementById("login-error").style.display="block";return}
+    currentUser=r;
+    if(!r.onboarding_complete&&r.email!=="admin@shipflow.com"){startOnboarding();}
+    else{showApp();}
+}
+
+async function doSignup(){
+    const name=document.getElementById("signup-name").value.trim();
+    const email=document.getElementById("signup-email").value.trim();
+    const pw=document.getElementById("signup-password").value;
+    const phone=document.getElementById("signup-phone").value.trim();
+    const company=document.getElementById("signup-company").value.trim();
+    if(!name||!email||!pw){document.getElementById("signup-error").textContent="Name, email, and password are required";document.getElementById("signup-error").style.display="block";return}
+    if(pw.length<6){document.getElementById("signup-error").textContent="Password must be at least 6 characters";document.getElementById("signup-error").style.display="block";return}
+    const r=await postJSON("/api/auth/signup",{name,email,password:pw,phone,company,account_type:onboardingData.accountType});
+    if(r.error){document.getElementById("signup-error").textContent=r.error;document.getElementById("signup-error").style.display="block";return}
+    currentUser=r;
+    startOnboarding();
+}
+
+async function doLogout(){
+    await postJSON("/api/auth/logout",{});
+    currentUser=null;
+    showAuth();
+}
+
+// Handle enter key on login/signup forms
+document.addEventListener("keydown",e=>{if(e.key==="Enter"){
+    if(document.getElementById("login-form").style.display!=="none"&&document.getElementById("auth-screen").style.display!=="none"){doLogin();}
+    else if(document.getElementById("signup-form").style.display!=="none"&&document.getElementById("auth-screen").style.display!=="none"){doSignup();}
+}});
+
+// ============================================================
+//  ONBOARDING FLOW
+// ============================================================
+
+const onboardingSteps = {
+    personal: ["use_cases","platforms","pricing","complete"],
+    enterprise: ["use_cases","platforms","questionnaire","quote","complete"]
+};
+let currentOnboardingStep = 0;
+
+async function startOnboarding(){
+    if(!catalogs){catalogs=await fetchJSON("/api/onboarding/catalogs");}
+    currentOnboardingStep=0;
+    document.getElementById("auth-screen").style.display="none";
+    document.getElementById("app-wrapper").style.display="none";
+    document.getElementById("onboarding-screen").classList.add("active");
+    renderOnboardingStep();
+}
+
+function getSteps(){return onboardingSteps[onboardingData.accountType]||onboardingSteps.personal;}
+
+function renderOnboardingProgress(){
+    const steps=getSteps();
+    document.getElementById("onboarding-progress").innerHTML=steps.map((s,i)=>
+        `<div class="onboarding-step ${i<currentOnboardingStep?'done':''} ${i===currentOnboardingStep?'current':''}"></div>`
+    ).join("");
+}
+
+function renderOnboardingStep(){
+    renderOnboardingProgress();
+    const steps=getSteps();
+    const step=steps[currentOnboardingStep];
+    const container=document.getElementById("onboarding-content");
+
+    if(step==="use_cases") renderUseCaseStep(container);
+    else if(step==="platforms") renderPlatformStep(container);
+    else if(step==="pricing") renderPricingStep(container);
+    else if(step==="questionnaire") renderQuestionnaireStep(container);
+    else if(step==="quote") renderQuoteStep(container);
+    else if(step==="complete") completeOnboarding();
+}
+
+function renderUseCaseStep(container){
+    const checkSvg='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>';
+    container.innerHTML=`
+        <div class="onboarding-header">
+            <h2>What will you use ShipFlow for?</h2>
+            <p>Select all that apply. This helps us customize your experience.</p>
+        </div>
+        <div class="pill-grid">
+            ${catalogs.use_cases.map(uc=>`
+                <div class="pill ${onboardingData.useCases.includes(uc.key)?'selected':''}" onclick="toggleUseCase('${uc.key}',this)">
+                    <div class="pill-check">${checkSvg}</div>
+                    <div class="pill-info">
+                        <div class="pill-name">${uc.name}</div>
+                        <div class="pill-desc">${uc.description}</div>
+                    </div>
+                </div>
+            `).join("")}
+        </div>
+        <div class="onboarding-nav">
+            <button class="btn btn-secondary" onclick="prevOnboarding()">Back</button>
+            <button class="btn btn-primary" onclick="nextOnboarding()">Continue</button>
+        </div>`;
+}
+
+function toggleUseCase(key,el){
+    const idx=onboardingData.useCases.indexOf(key);
+    if(idx>=0)onboardingData.useCases.splice(idx,1);else onboardingData.useCases.push(key);
+    el.classList.toggle("selected");
+}
+
+function renderPlatformStep(container){
+    const checkSvg='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>';
+    const diffLabel=d=>d===1?'Easy':d===2?'Medium':'Advanced';
+    const diffClass=d=>d===1?'easy':d===2?'medium':'hard';
+    // Group by category, sorted by difficulty
+    const cats={};
+    const catNames={ecommerce:"E-Commerce",marketplace:"Marketplaces",payments:"Payments",accounting:"Accounting",
+        analytics:"Analytics",productivity:"Productivity",communication:"Communication",crm:"CRM",
+        automation:"Automation",shipping:"Shipping",international:"International",logistics:"Logistics",enterprise:"Enterprise"};
+    const sorted=[...catalogs.platforms].sort((a,b)=>a.difficulty-b.difficulty);
+    sorted.forEach(p=>{if(!cats[p.category])cats[p.category]=[];cats[p.category].push(p);});
+
+    let html=`<div class="onboarding-header">
+        <h2>Connect Your Platforms</h2>
+        <p>Link the platforms you use. Sorted from easiest to most technical setup. You can always add more later.</p>
+    </div>
+    <div style="max-height:500px;overflow-y:auto;padding-right:10px">`;
+    for(const[cat,platforms]of Object.entries(cats)){
+        html+=`<div class="platform-category">
+            <div class="platform-category-title">${catNames[cat]||cat}</div>
+            <div class="pill-grid">
+                ${platforms.map(p=>`
+                    <div class="pill ${onboardingData.platforms.includes(p.key)?'selected':''}" onclick="togglePlatform('${p.key}',this)">
+                        <div class="pill-check">${checkSvg}</div>
+                        <div class="pill-info">
+                            <div class="pill-name">${p.name}</div>
+                            <div class="pill-desc">${p.description}</div>
+                        </div>
+                        <div style="display:flex;flex-direction:column;gap:3px;align-items:flex-end">
+                            <span class="pill-badge ${p.free?'free':'paid'}">${p.free?'Free':'Paid'}</span>
+                            <span class="pill-badge ${diffClass(p.difficulty)}">${diffLabel(p.difficulty)}</span>
+                        </div>
+                    </div>
+                `).join("")}
+            </div>
+        </div>`;
+    }
+    html+=`</div>
+    <div class="onboarding-nav">
+        <button class="btn btn-secondary" onclick="prevOnboarding()">Back</button>
+        <button class="btn btn-primary" onclick="nextOnboarding()">Continue</button>
+    </div>`;
+    container.innerHTML=html;
+}
+
+function togglePlatform(key,el){
+    const idx=onboardingData.platforms.indexOf(key);
+    if(idx>=0)onboardingData.platforms.splice(idx,1);else onboardingData.platforms.push(key);
+    el.classList.toggle("selected");
+}
+
+function renderPricingStep(container){
+    // Check if any selected platforms require payment
+    const paidPlatforms=onboardingData.platforms.filter(pk=>{
+        const p=catalogs.platforms.find(x=>x.key===pk);
+        return p&&!p.free;
+    });
+
+    container.innerHTML=`
+        <div class="onboarding-header">
+            <h2>Choose Your Plan</h2>
+            <p>Start free and upgrade anytime as you grow.</p>
+        </div>
+        ${paidPlatforms.length>0?`<div class="card" style="margin-bottom:20px;border-color:var(--orange)">
+            <div style="font-size:13px;color:var(--orange);font-weight:600;margin-bottom:4px">Paid Platforms Selected</div>
+            <div style="font-size:12px;color:var(--text-muted)">You selected ${paidPlatforms.length} platform(s) that require a paid plan: ${paidPlatforms.map(pk=>{const p=catalogs.platforms.find(x=>x.key===pk);return p?p.name:pk;}).join(", ")}. The Free tier includes up to 2 platforms and they must be free ones.</div>
+        </div>`:''}
+        <div class="pricing-grid">
+            ${catalogs.personal_tiers.map((t,i)=>`
+                <div class="pricing-card ${onboardingData.plan===t.key?'selected':''} ${i===2?'popular':''}" onclick="selectPlan('${t.key}')">
+                    ${i===2?'<div class="popular-badge">Most Popular</div>':''}
+                    <div class="pricing-name">${t.name}</div>
+                    <div class="pricing-price">${t.price===0?'Free':'$'+t.price}<span>${t.price>0?'/mo':''}</span></div>
+                    <div class="pricing-desc">${t.description}</div>
+                    <ul class="pricing-features">
+                        ${t.features.map(f=>`<li>${f}</li>`).join("")}
+                    </ul>
+                </div>
+            `).join("")}
+        </div>
+        <div class="onboarding-nav">
+            <button class="btn btn-secondary" onclick="prevOnboarding()">Back</button>
+            <button class="btn btn-primary" onclick="nextOnboarding()">Start Using ShipFlow</button>
+        </div>`;
+}
+
+function selectPlan(key){
+    onboardingData.plan=key;
+    document.querySelectorAll(".pricing-card").forEach(c=>c.classList.remove("selected"));
+    event.currentTarget.classList.add("selected");
+}
+
+function renderQuestionnaireStep(container){
+    container.innerHTML=`
+        <div class="onboarding-header">
+            <h2>Tell Us About Your Company</h2>
+            <p>This helps us create the right quote and setup for your organization.</p>
+        </div>
+        <div class="card">
+            <div class="form-group"><label class="form-label">Company Name</label>
+                <input class="form-input" id="eq-company" placeholder="Your company name" value="${currentUser.company||''}"></div>
+            <div class="form-row">
+                <div class="form-group"><label class="form-label">Company Size</label>
+                    <select class="form-select" id="eq-size">
+                        <option value="1-50">1-50 employees</option>
+                        <option value="51-200">51-200 employees</option>
+                        <option value="201-500">201-500 employees</option>
+                        <option value="501-1000">501-1000 employees</option>
+                        <option value="1000+">1000+ employees</option>
+                    </select></div>
+                <div class="form-group"><label class="form-label">Industry</label>
+                    <select class="form-select" id="eq-industry">
+                        <option>E-Commerce / Retail</option><option>Manufacturing</option>
+                        <option>Technology</option><option>Healthcare</option>
+                        <option>Food & Beverage</option><option>Consumer Goods</option>
+                        <option>Automotive</option><option>Fashion & Apparel</option>
+                        <option>Electronics</option><option>Other</option>
+                    </select></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label class="form-label">Monthly Shipments</label>
+                    <select class="form-select" id="eq-shipments">
+                        <option value="0-500">0 - 500</option><option value="500-1000">500 - 1,000</option>
+                        <option value="1000-5000">1,000 - 5,000</option><option value="5000-10000">5,000 - 10,000</option>
+                        <option value="10000-50000">10,000 - 50,000</option><option value="50000+">50,000+</option>
+                    </select></div>
+                <div class="form-group"><label class="form-label">Annual Revenue</label>
+                    <select class="form-select" id="eq-revenue">
+                        <option value="under-1m">Under $1M</option><option value="1m-5m">$1M - $5M</option>
+                        <option value="5m-25m">$5M - $25M</option><option value="25m-100m">$25M - $100M</option>
+                        <option value="100m+">$100M+</option>
+                    </select></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label class="form-label">Team Size (users who need access)</label>
+                    <select class="form-select" id="eq-team">
+                        <option value="1-5">1-5 users</option><option value="6-15">6-15 users</option>
+                        <option value="16-50">16-50 users</option><option value="50+">50+ users</option>
+                    </select></div>
+                <div class="form-group"><label class="form-label">Implementation Timeline</label>
+                    <select class="form-select" id="eq-timeline">
+                        <option>Immediately</option><option>Within 1 month</option>
+                        <option>1-3 months</option><option>3-6 months</option><option>Evaluating</option>
+                    </select></div>
+            </div>
+            <div class="form-group"><label class="form-label">Current Tools / Platforms</label>
+                <textarea class="form-input" id="eq-tools" placeholder="What shipping/logistics tools do you currently use?"></textarea></div>
+            <div class="form-group"><label class="form-label">Key Pain Points</label>
+                <textarea class="form-input" id="eq-pain" placeholder="What challenges are you looking to solve?"></textarea></div>
+            <div class="form-group"><label class="form-label">Additional Notes</label>
+                <textarea class="form-input" id="eq-notes" placeholder="Anything else we should know?"></textarea></div>
+        </div>
+        <div class="onboarding-nav">
+            <button class="btn btn-secondary" onclick="prevOnboarding()">Back</button>
+            <button class="btn btn-primary" onclick="submitQuestionnaire()">Get Your Quote</button>
+        </div>`;
+}
+
+let enterpriseQuote = null;
+
+async function submitQuestionnaire(){
+    const data={
+        company_name:document.getElementById("eq-company").value,
+        company_size:document.getElementById("eq-size").value,
+        industry:document.getElementById("eq-industry").value,
+        monthly_shipments:document.getElementById("eq-shipments").value,
+        annual_revenue:document.getElementById("eq-revenue").value,
+        team_size:document.getElementById("eq-team").value,
+        current_tools:document.getElementById("eq-tools").value,
+        pain_points:document.getElementById("eq-pain").value,
+        timeline:document.getElementById("eq-timeline").value,
+        additional_notes:document.getElementById("eq-notes").value
+    };
+    const r=await postJSON("/api/onboarding/enterprise-questionnaire",data);
+    if(r.error){toast(r.error,"error");return;}
+    enterpriseQuote=r;
+    nextOnboarding();
+}
+
+function renderQuoteStep(container){
+    if(!enterpriseQuote){prevOnboarding();return;}
+    container.innerHTML=`
+        <div class="onboarding-header">
+            <h2>Your Custom Quote</h2>
+            <p>Based on your company profile, here is your estimated monthly pricing.</p>
+        </div>
+        <div class="quote-card">
+            <div style="font-size:13px;color:var(--text-muted);margin-bottom:8px">Estimated Monthly Price</div>
+            <div class="quote-price">$${fmtN(enterpriseQuote.quote)}<span>/mo</span></div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:4px">Range: $${fmtN(enterpriseQuote.min_price)} - $${fmtN(enterpriseQuote.max_price)}/mo based on usage</div>
+            <div class="quote-actions">
+                <button class="btn btn-primary btn-lg" onclick="acceptQuote()">Accept & Get Started</button>
+                <button class="btn btn-secondary btn-lg" onclick="showMeetingForm()">Schedule a Meeting</button>
+            </div>
+        </div>
+        <div class="card" style="margin-top:16px">
+            <div class="card-title">Enterprise Features Included</div>
+            <ul class="pricing-features" style="columns:2;column-gap:20px">
+                <li>Unlimited shipments</li><li>Unlimited platform connections</li>
+                <li>Unlimited team members</li><li>Admin roles (Owner, Admin, Manager, Analyst, Viewer)</li>
+                <li>SSO / SAML authentication</li><li>Dedicated account manager</li>
+                <li>Custom analytics & reporting</li><li>SLA guarantee</li>
+                <li>Priority API rate limits</li><li>Onboarding & training</li>
+                <li>Custom integrations</li><li>Audit log & compliance</li>
+            </ul>
+        </div>
+        <div id="meeting-form-area"></div>
+        <div class="onboarding-nav">
+            <button class="btn btn-secondary" onclick="prevOnboarding()">Back</button>
+        </div>`;
+}
+
+async function acceptQuote(){
+    await postJSON("/api/onboarding/accept-quote",{});
+    toast("Quote accepted! Welcome to ShipFlow Enterprise.","success");
+    nextOnboarding();
+}
+
+function showMeetingForm(){
+    document.getElementById("meeting-form-area").innerHTML=`
+        <div class="meeting-card">
+            <h3 style="font-size:16px;margin-bottom:16px">Schedule a Meeting</h3>
+            <div class="form-row">
+                <div class="form-group"><label class="form-label">Your Name</label>
+                    <input class="form-input" id="mt-name" value="${currentUser.name||''}"></div>
+                <div class="form-group"><label class="form-label">Email</label>
+                    <input class="form-input" id="mt-email" value="${currentUser.email||''}"></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label class="form-label">Phone</label>
+                    <input class="form-input" id="mt-phone" placeholder="555-123-4567"></div>
+                <div class="form-group"><label class="form-label">Timezone</label>
+                    <select class="form-select" id="mt-tz"><option>EST</option><option>CST</option><option>MST</option><option>PST</option></select></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label class="form-label">Preferred Date</label>
+                    <input class="form-input" id="mt-date" type="date"></div>
+                <div class="form-group"><label class="form-label">Preferred Time</label>
+                    <select class="form-select" id="mt-time">
+                        <option>9:00 AM</option><option>10:00 AM</option><option>11:00 AM</option>
+                        <option>1:00 PM</option><option>2:00 PM</option><option>3:00 PM</option><option>4:00 PM</option>
+                    </select></div>
+            </div>
+            <div class="form-group"><label class="form-label">Notes</label>
+                <textarea class="form-input" id="mt-notes" placeholder="Anything you'd like to discuss?"></textarea></div>
+            <button class="btn btn-primary" onclick="submitMeeting()">Request Meeting</button>
+        </div>`;
+}
+
+async function submitMeeting(){
+    const data={
+        contact_name:document.getElementById("mt-name").value,
+        contact_email:document.getElementById("mt-email").value,
+        contact_phone:document.getElementById("mt-phone").value,
+        timezone:document.getElementById("mt-tz").value,
+        preferred_date:document.getElementById("mt-date").value,
+        preferred_time:document.getElementById("mt-time").value,
+        notes:document.getElementById("mt-notes").value
+    };
+    await postJSON("/api/onboarding/request-meeting",data);
+    toast("Meeting requested! We'll be in touch soon.","success");
+    document.getElementById("meeting-form-area").innerHTML=`
+        <div class="card" style="margin-top:16px;border-color:var(--green);text-align:center;padding:24px">
+            <div style="font-size:18px;font-weight:700;color:var(--green);margin-bottom:8px">Meeting Requested!</div>
+            <div style="font-size:13px;color:var(--text-muted)">Our team will reach out to confirm your meeting. You can start exploring ShipFlow in the meantime.</div>
+            <button class="btn btn-primary" style="margin-top:16px" onclick="nextOnboarding()">Start Exploring ShipFlow</button>
+        </div>`;
+}
+
+async function completeOnboarding(){
+    // Save all onboarding data
+    await Promise.all([
+        postJSON("/api/onboarding/save-use-cases",{use_cases:onboardingData.useCases}),
+        postJSON("/api/onboarding/save-platforms",{platforms:onboardingData.platforms}),
+        postJSON("/api/onboarding/save-plan",{plan:onboardingData.plan}),
+        postJSON("/api/onboarding/complete",{})
+    ]);
+    // Reload user data
+    currentUser=await fetchJSON("/api/auth/me");
+    showApp();
+    toast("Welcome to ShipFlow! Your account is all set up.","success");
+}
+
+function nextOnboarding(){
+    const steps=getSteps();
+    if(currentOnboardingStep<steps.length-1){currentOnboardingStep++;renderOnboardingStep();}
+}
+
+function prevOnboarding(){
+    if(currentOnboardingStep>0){currentOnboardingStep--;renderOnboardingStep();}
+    else{showAuth();}
+}
+
+// ============================================================
+//  CONFIGURE UI BASED ON USER
+// ============================================================
+
+function configureUIForUser(){
+    if(!currentUser)return;
+    const isEnterprise=currentUser.account_type==="enterprise";
+    const isDemo=currentUser.email==="admin@shipflow.com";
+
+    // Show/hide enterprise nav
+    document.getElementById("nav-enterprise-section").style.display=isEnterprise?"block":"none";
+
+    // Update plan badge
+    const planBadge=document.getElementById("sidebar-plan-badge");
+    if(isEnterprise){planBadge.innerHTML=`<span class="account-type-badge enterprise">Enterprise</span>`;}
+    else{planBadge.innerHTML=`<span class="account-type-badge personal">${(currentUser.plan||'free').toUpperCase()}</span>`;}
+
+    // Dashboard subtitle
+    const sub=document.getElementById("dash-subtitle");
+    if(isEnterprise){sub.textContent="Enterprise shipping operations";}
+    else{sub.textContent="Your shipping analytics";}
+
+    // Account badge on dashboard
+    document.getElementById("dash-account-badge").innerHTML=
+        `<span class="account-type-badge ${currentUser.account_type}">${currentUser.account_type}</span>`;
+
+    // Welcome card for new (non-demo) users with no data
+    if(!isDemo){
+        document.getElementById("dash-welcome").style.display="block";
+        document.getElementById("dash-welcome").innerHTML=`
+            <div class="card" style="margin-bottom:20px;border-color:var(--accent)">
+                <div style="display:flex;align-items:center;gap:16px">
+                    <div style="font-size:28px">&#128075;</div>
+                    <div>
+                        <div style="font-size:16px;font-weight:700;margin-bottom:4px">Welcome, ${currentUser.name}!</div>
+                        <div style="font-size:13px;color:var(--text-muted)">
+                            ${isDemo?'This is the demo account with sample data.':
+                            'Get started by creating your first shipment, connecting platforms, or exploring the dashboard.'}
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+    } else {
+        document.getElementById("dash-welcome").style.display="none";
+    }
+}
+
 // Nav
-document.querySelectorAll(".nav-item").forEach(item=>{item.addEventListener("click",()=>{document.querySelectorAll(".nav-item").forEach(i=>i.classList.remove("active"));document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));item.classList.add("active");document.getElementById(item.dataset.section).classList.add("active");load(item.dataset.section)})});
+document.querySelectorAll(".nav-item[data-section]").forEach(item=>{item.addEventListener("click",()=>{document.querySelectorAll(".nav-item").forEach(i=>i.classList.remove("active"));document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));item.classList.add("active");const sec=item.dataset.section;document.getElementById(sec).classList.add("active");load(sec)})});
 function load(s){const fn={dashboard:loadDashboard,shipments:loadShipments,"create-shipment":loadCreateShipment,tracking:()=>{},
     "rate-calc":()=>{},carriers:loadCarriers,delivery:loadDelivery,geographic:loadGeo,costs:loadCosts,
     customers:loadCustomers,claims:loadClaims,warehouses:loadWarehouses,
+    team:loadTeam,platforms:loadPlatforms,
     account:loadAccount,payments:loadPayments,billing:loadBilling,
     notifications:loadNotifications,settings:loadSettings};(fn[s]||function(){})()}
 
 // ===== DASHBOARD =====
 async function loadDashboard(){
+    try{
     const[ov,daily,byStatus,bySvc,recent]=await Promise.all([fetchJSON("/api/overview"),fetchJSON("/api/shipments/daily"),fetchJSON("/api/shipments/by-status"),fetchJSON("/api/shipments/by-service"),fetchJSON("/api/shipments/recent?limit=10")]);
     document.getElementById("dash-kpis").innerHTML=[
         kpiHTML(svgS,"blue","Total Shipments",fmtN(ov.total_shipments),`${ov.shipment_growth>=0?"+":""}${ov.shipment_growth}%`,ov.shipment_growth>=0?"up":"down"),
@@ -465,23 +1181,30 @@ async function loadDashboard(){
         kpiHTML(svgA,"orange","Returns",fmtN(ov.returned),pct(ov.return_rate)+" rate"),
         kpiHTML(svgA,"red","Open Claims",fmtN(ov.open_claims),fmtN(ov.exceptions)+" exceptions"),
     ].join("");
+    if(daily.length){
     mk("c-daily-vol",{type:"bar",data:{labels:daily.map(d=>d.date.slice(5)),datasets:[{label:"Shipments",data:daily.map(d=>d.count),backgroundColor:C.accent+"99",borderRadius:4,yAxisID:"y"},{label:"Revenue",data:daily.map(d=>d.revenue),type:"line",borderColor:C.green,pointRadius:1,tension:.3,yAxisID:"y1"}]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},scales:{y:{position:"left",grid:{display:false}},y1:{position:"right",grid:{display:false}}},plugins:{legend:{labels:{boxWidth:12}}}}});
+    }
+    if(byStatus.length){
     mk("c-dash-status",{type:"doughnut",data:{labels:byStatus.map(d=>d.status),datasets:[{data:byStatus.map(d=>d.count),backgroundColor:byStatus.map(d=>SC[d.status]||"#555")}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"right",labels:{boxWidth:10,padding:8}}}}});
+    }
+    if(bySvc.length){
     mk("c-dash-service",{type:"doughnut",data:{labels:bySvc.map(d=>d.service_level),datasets:[{data:bySvc.map(d=>d.count),backgroundColor:PALETTE}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"right",labels:{boxWidth:10,padding:8}}}}});
-    document.querySelector("#dash-table tbody").innerHTML=recent.map(r=>`<tr><td style="font-family:monospace;font-size:11px">${r.tracking_number}</td><td>${r.customer_name||""}</td><td>${r.carrier_name}</td><td>${r.service_level}</td><td>${r.destination_city}, ${r.destination_state}</td><td><span class="badge badge-${r.status}">${r.status.replace(/_/g," ")}</span></td><td>${fmt$(r.shipping_cost+r.insurance_cost)}</td><td style="color:var(--text-muted)">${new Date(r.created_at).toLocaleDateString()}</td></tr>`).join("");
+    }
+    document.querySelector("#dash-table tbody").innerHTML=recent.length?recent.map(r=>`<tr><td style="font-family:monospace;font-size:11px">${r.tracking_number}</td><td>${r.customer_name||""}</td><td>${r.carrier_name}</td><td>${r.service_level}</td><td>${r.destination_city}, ${r.destination_state}</td><td><span class="badge badge-${r.status}">${r.status.replace(/_/g," ")}</span></td><td>${fmt$(r.shipping_cost+r.insurance_cost)}</td><td style="color:var(--text-muted)">${new Date(r.created_at).toLocaleDateString()}</td></tr>`).join(""):'<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:40px">No shipments yet. Create your first shipment to get started.</td></tr>';
     loadNotifBadge();
+    }catch(e){if(e.message!=="auth")console.error(e);}
 }
 
 // ===== SHIPMENTS =====
 async function loadShipments(){
     const[ov,daily,byStatus,bySvc,byPkg,funnel]=await Promise.all([fetchJSON("/api/overview"),fetchJSON("/api/shipments/daily"),fetchJSON("/api/shipments/by-status"),fetchJSON("/api/shipments/by-service"),fetchJSON("/api/shipments/by-package"),fetchJSON("/api/funnel")]);
     document.getElementById("ship-kpis").innerHTML=[kpiHTML(svgS,"blue","Total",fmtN(ov.total_shipments)),kpiHTML(svgS,"blue","This Month",fmtN(ov.month_shipments),`${ov.shipment_growth>=0?"+":""}${ov.shipment_growth}%`,ov.shipment_growth>=0?"up":"down"),kpiHTML(svgS,"purple","In Transit",fmtN(ov.in_transit)),kpiHTML(svgV,"green","Delivered",fmtN(ov.delivered))].join("");
-    mk("c-ship-daily",{type:"bar",data:{labels:daily.map(d=>d.date.slice(5)),datasets:[{data:daily.map(d=>d.count),backgroundColor:C.accent,borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});
-    mk("c-ship-status",{type:"doughnut",data:{labels:byStatus.map(d=>d.status),datasets:[{data:byStatus.map(d=>d.count),backgroundColor:byStatus.map(d=>SC[d.status]||"#555")}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom",labels:{boxWidth:10,padding:6,font:{size:10}}}}}});
-    mk("c-ship-svc",{type:"doughnut",data:{labels:bySvc.map(d=>d.service_level),datasets:[{data:bySvc.map(d=>d.count),backgroundColor:PALETTE}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom",labels:{boxWidth:10,padding:6,font:{size:10}}}}}});
-    mk("c-ship-pkg",{type:"doughnut",data:{labels:byPkg.map(d=>d.package_type),datasets:[{data:byPkg.map(d=>d.count),backgroundColor:PALETTE}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom",labels:{boxWidth:10,padding:6,font:{size:10}}}}}});
+    if(daily.length){mk("c-ship-daily",{type:"bar",data:{labels:daily.map(d=>d.date.slice(5)),datasets:[{data:daily.map(d=>d.count),backgroundColor:C.accent,borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});}
+    if(byStatus.length){mk("c-ship-status",{type:"doughnut",data:{labels:byStatus.map(d=>d.status),datasets:[{data:byStatus.map(d=>d.count),backgroundColor:byStatus.map(d=>SC[d.status]||"#555")}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom",labels:{boxWidth:10,padding:6,font:{size:10}}}}}});}
+    if(bySvc.length){mk("c-ship-svc",{type:"doughnut",data:{labels:bySvc.map(d=>d.service_level),datasets:[{data:bySvc.map(d=>d.count),backgroundColor:PALETTE}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom",labels:{boxWidth:10,padding:6,font:{size:10}}}}}});}
+    if(byPkg.length){mk("c-ship-pkg",{type:"doughnut",data:{labels:byPkg.map(d=>d.package_type),datasets:[{data:byPkg.map(d=>d.count),backgroundColor:PALETTE}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom",labels:{boxWidth:10,padding:6,font:{size:10}}}}}});}
     const max=funnel[0]?.count||1;const colors=[C.accent,C.cyan,C.purple,C.orange,C.green];
-    document.getElementById("ship-funnel").innerHTML=funnel.map((s,i)=>{const p=Math.max(Math.round(s.count/max*100),3);const cv=i>0?Math.round(s.count/funnel[i-1].count*100):100;return`<div class="funnel-row"><div class="funnel-label">${s.step}</div><div class="funnel-bar-bg"><div class="funnel-bar" style="width:${p}%;background:${colors[i]}">${fmtN(s.count)} (${cv}%)</div></div></div>`}).join("");
+    document.getElementById("ship-funnel").innerHTML=funnel.length?funnel.map((s,i)=>{const p=Math.max(Math.round(s.count/max*100),3);const cv=i>0?Math.round(s.count/funnel[i-1].count*100):100;return`<div class="funnel-row"><div class="funnel-label">${s.step}</div><div class="funnel-bar-bg"><div class="funnel-bar" style="width:${p}%;background:${colors[i]}">${fmtN(s.count)} (${cv}%)</div></div></div>`}).join(""):'<div style="color:var(--text-muted);text-align:center;padding:20px">No funnel data yet</div>';
 }
 
 // ===== CREATE SHIPMENT =====
@@ -537,6 +1260,7 @@ async function calcRates(){
 // ===== CARRIERS =====
 async function loadCarriers(){
     const data=await fetchJSON("/api/carriers/performance");
+    if(!data.length)return;
     mk("c-carrier-compare",{type:"bar",data:{labels:data.map(d=>d.carrier),datasets:[{label:"On-Time %",data:data.map(d=>d.on_time_rate),backgroundColor:C.green+"bb",borderRadius:4},{label:"Avg Days",data:data.map(d=>d.avg_days),backgroundColor:C.accent+"bb",borderRadius:4},{label:"Avg Cost ($)",data:data.map(d=>d.avg_cost),backgroundColor:C.orange+"bb",borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:12}}}}});
     document.querySelector("#carrier-table tbody").innerHTML=data.map(d=>`<tr><td style="font-weight:600">${d.carrier}</td><td>${d.carrier_type}</td><td>${fmtN(d.total_shipments)}</td><td>${fmtN(d.delivered)}</td><td style="color:${d.on_time_rate>=85?"var(--green)":d.on_time_rate>=70?"var(--orange)":"var(--red)"};font-weight:600">${pct(d.on_time_rate)}</td><td>${d.avg_days||"-"}</td><td>${fmt$(d.avg_cost)}</td><td>${d.returns}</td><td>${d.exceptions}</td></tr>`).join("");
 }
@@ -545,18 +1269,18 @@ async function loadCarriers(){
 async function loadDelivery(){
     const[ov,trend,dist,svc,carriers]=await Promise.all([fetchJSON("/api/overview"),fetchJSON("/api/delivery/ontime-trend"),fetchJSON("/api/delivery/time-distribution"),fetchJSON("/api/shipments/by-service"),fetchJSON("/api/carriers/performance")]);
     document.getElementById("del-kpis").innerHTML=[kpiHTML(svgV,"green","On-Time",pct(ov.on_time_rate)),kpiHTML(svgT,"purple","Avg Delivery",ov.avg_delivery_days+" days"),kpiHTML(svgS,"blue","Delivered",fmtN(ov.delivered)),kpiHTML(svgA,"red","Return Rate",pct(ov.return_rate))].join("");
-    mk("c-ontime-trend",{type:"line",data:{labels:trend.map(d=>d.date.slice(5)),datasets:[{data:trend.map(d=>d.rate),borderColor:C.green,backgroundColor:C.green+"18",fill:true,tension:.3,pointRadius:1}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{min:50,max:100}}}});
-    mk("c-del-dist",{type:"bar",data:{labels:dist.map(d=>d.days+"d"),datasets:[{data:dist.map(d=>d.count),backgroundColor:C.accent,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});
-    mk("c-del-svc",{type:"bar",data:{labels:svc.map(d=>d.service_level),datasets:[{data:svc.map(d=>d.avg_days),backgroundColor:PALETTE,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});
-    mk("c-del-carrier",{type:"bar",data:{labels:carriers.map(d=>d.carrier),datasets:[{data:carriers.map(d=>d.on_time_rate),backgroundColor:carriers.map(d=>d.on_time_rate>=85?C.green:d.on_time_rate>=70?C.orange:C.red),borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:"y",plugins:{legend:{display:false}},scales:{x:{min:0,max:100}}}});
+    if(trend.length){mk("c-ontime-trend",{type:"line",data:{labels:trend.map(d=>d.date.slice(5)),datasets:[{data:trend.map(d=>d.rate),borderColor:C.green,backgroundColor:C.green+"18",fill:true,tension:.3,pointRadius:1}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{min:50,max:100}}}});}
+    if(dist.length){mk("c-del-dist",{type:"bar",data:{labels:dist.map(d=>d.days+"d"),datasets:[{data:dist.map(d=>d.count),backgroundColor:C.accent,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});}
+    if(svc.length){mk("c-del-svc",{type:"bar",data:{labels:svc.map(d=>d.service_level),datasets:[{data:svc.map(d=>d.avg_days),backgroundColor:PALETTE,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});}
+    if(carriers.length){mk("c-del-carrier",{type:"bar",data:{labels:carriers.map(d=>d.carrier),datasets:[{data:carriers.map(d=>d.on_time_rate),backgroundColor:carriers.map(d=>d.on_time_rate>=85?C.green:d.on_time_rate>=70?C.orange:C.red),borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:"y",plugins:{legend:{display:false}},scales:{x:{min:0,max:100}}}});}
 }
 
 // ===== GEOGRAPHIC =====
 async function loadGeo(){
     const[regions,states,routes]=await Promise.all([fetchJSON("/api/regions/volume"),fetchJSON("/api/regions/top-states"),fetchJSON("/api/routes/popular")]);
-    mk("c-geo-region",{type:"bar",data:{labels:regions.map(d=>d.region),datasets:[{data:regions.map(d=>d.shipments),backgroundColor:PALETTE,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});
-    mk("c-geo-rev",{type:"doughnut",data:{labels:regions.map(d=>d.region),datasets:[{data:regions.map(d=>d.revenue),backgroundColor:PALETTE}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"right",labels:{boxWidth:10,padding:8}}}}});
-    mk("c-geo-states",{type:"bar",data:{labels:states.map(d=>d.state),datasets:[{data:states.map(d=>d.count),backgroundColor:C.accent,borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:"y",plugins:{legend:{display:false}}}});
+    if(regions.length){mk("c-geo-region",{type:"bar",data:{labels:regions.map(d=>d.region),datasets:[{data:regions.map(d=>d.shipments),backgroundColor:PALETTE,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});}
+    if(regions.length){mk("c-geo-rev",{type:"doughnut",data:{labels:regions.map(d=>d.region),datasets:[{data:regions.map(d=>d.revenue),backgroundColor:PALETTE}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"right",labels:{boxWidth:10,padding:8}}}}});}
+    if(states.length){mk("c-geo-states",{type:"bar",data:{labels:states.map(d=>d.state),datasets:[{data:states.map(d=>d.count),backgroundColor:C.accent,borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:"y",plugins:{legend:{display:false}}}});}
     document.querySelector("#geo-table tbody").innerHTML=regions.map(d=>`<tr><td style="font-weight:600">${d.region}</td><td>${fmtN(d.shipments)}</td><td>${fmt$(d.revenue)}</td><td>${d.avg_days||"-"}</td><td style="color:${d.on_time_rate>=80?"var(--green)":"var(--orange)"}">${pct(d.on_time_rate)}</td></tr>`).join("");
     document.querySelector("#routes-table tbody").innerHTML=routes.map(d=>`<tr><td>${d.origin}</td><td>${d.destination}</td><td style="font-weight:600">${fmtN(d.volume)}</td><td>${fmt$(d.avg_cost)}</td><td>${d.avg_days||"-"}</td></tr>`).join("");
 }
@@ -565,46 +1289,84 @@ async function loadGeo(){
 async function loadCosts(){
     const[ov,daily,bd]=await Promise.all([fetchJSON("/api/overview"),fetchJSON("/api/revenue/daily"),fetchJSON("/api/costs/breakdown")]);
     document.getElementById("cost-kpis").innerHTML=[kpiHTML(svg$,"green","Total Revenue",fmt$(ov.total_revenue)),kpiHTML(svg$,"blue","This Month",fmt$(ov.month_revenue),`${ov.revenue_growth>=0?"+":""}${ov.revenue_growth}%`,ov.revenue_growth>=0?"up":"down"),kpiHTML(svg$,"purple","Avg Cost",fmt$(ov.avg_cost))].join("");
-    mk("c-cost-daily",{type:"bar",data:{labels:daily.map(d=>d.date.slice(5)),datasets:[{label:"Shipping",data:daily.map(d=>d.shipping),backgroundColor:C.accent+"aa",borderRadius:3,stack:"s"},{label:"Insurance",data:daily.map(d=>d.insurance),backgroundColor:C.green+"aa",borderRadius:3,stack:"s"}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:12}}},scales:{x:{stacked:true},y:{stacked:true}}}});
-    mk("c-cost-svc",{type:"bar",data:{labels:bd.by_service.map(d=>d.service_level),datasets:[{label:"Shipping",data:bd.by_service.map(d=>d.avg_shipping),backgroundColor:C.accent,borderRadius:4},{label:"Insurance",data:bd.by_service.map(d=>d.avg_insurance),backgroundColor:C.green,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:12}}}}});
-    mk("c-cost-weight",{type:"bar",data:{labels:bd.by_weight.map(d=>d.weight_bracket),datasets:[{data:bd.by_weight.map(d=>d.avg_cost),backgroundColor:C.orange,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});
+    if(daily.length){mk("c-cost-daily",{type:"bar",data:{labels:daily.map(d=>d.date.slice(5)),datasets:[{label:"Shipping",data:daily.map(d=>d.shipping),backgroundColor:C.accent+"aa",borderRadius:3,stack:"s"},{label:"Insurance",data:daily.map(d=>d.insurance),backgroundColor:C.green+"aa",borderRadius:3,stack:"s"}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:12}}},scales:{x:{stacked:true},y:{stacked:true}}}});}
+    if(bd.by_service.length){mk("c-cost-svc",{type:"bar",data:{labels:bd.by_service.map(d=>d.service_level),datasets:[{label:"Shipping",data:bd.by_service.map(d=>d.avg_shipping),backgroundColor:C.accent,borderRadius:4},{label:"Insurance",data:bd.by_service.map(d=>d.avg_insurance),backgroundColor:C.green,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:12}}}}});}
+    if(bd.by_weight.length){mk("c-cost-weight",{type:"bar",data:{labels:bd.by_weight.map(d=>d.weight_bracket),datasets:[{data:bd.by_weight.map(d=>d.avg_cost),backgroundColor:C.orange,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});}
 }
 
 // ===== CUSTOMERS =====
 async function loadCustomers(){
     const[tiers,top]=await Promise.all([fetchJSON("/api/customers/by-tier"),fetchJSON("/api/customers/top")]);
     const tc={standard:C.accent,premium:C.green,enterprise:C.orange};
-    mk("c-cust-tier",{type:"doughnut",data:{labels:tiers.map(d=>d.tier),datasets:[{data:tiers.map(d=>d.revenue),backgroundColor:tiers.map(d=>tc[d.tier]||C.pink)}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom",labels:{boxWidth:10}}}}});
-    mk("c-cust-tier-vol",{type:"bar",data:{labels:tiers.map(d=>d.tier),datasets:[{label:"Customers",data:tiers.map(d=>d.customers),backgroundColor:C.accent,borderRadius:4},{label:"Shipments",data:tiers.map(d=>d.shipments),backgroundColor:C.green,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:12}}}}});
-    document.querySelector("#cust-table tbody").innerHTML=top.map(d=>`<tr><td style="font-weight:600">${d.name}</td><td>${d.company||"-"}</td><td><span class="badge badge-${d.tier==="enterprise"?"delivered":d.tier==="premium"?"in_transit":"label_created"}">${d.tier}</span></td><td>${d.city}, ${d.state}</td><td>${fmtN(d.shipments)}</td><td style="font-weight:600">${fmt$(d.total_spent)}</td><td>${fmt$(d.avg_cost)}</td></tr>`).join("");
+    if(tiers.length){mk("c-cust-tier",{type:"doughnut",data:{labels:tiers.map(d=>d.tier),datasets:[{data:tiers.map(d=>d.revenue),backgroundColor:tiers.map(d=>tc[d.tier]||C.pink)}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom",labels:{boxWidth:10}}}}});}
+    if(tiers.length){mk("c-cust-tier-vol",{type:"bar",data:{labels:tiers.map(d=>d.tier),datasets:[{label:"Customers",data:tiers.map(d=>d.customers),backgroundColor:C.accent,borderRadius:4},{label:"Shipments",data:tiers.map(d=>d.shipments),backgroundColor:C.green,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:12}}}}});}
+    document.querySelector("#cust-table tbody").innerHTML=top.length?top.map(d=>`<tr><td style="font-weight:600">${d.name}</td><td>${d.company||"-"}</td><td><span class="badge badge-${d.tier==="enterprise"?"delivered":d.tier==="premium"?"in_transit":"label_created"}">${d.tier}</span></td><td>${d.city}, ${d.state}</td><td>${fmtN(d.shipments)}</td><td style="font-weight:600">${fmt$(d.total_spent)}</td><td>${fmt$(d.avg_cost)}</td></tr>`).join(""):'<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:30px">No customer data yet</td></tr>';
 }
 
 // ===== CLAIMS =====
 async function loadClaims(){
     const d=await fetchJSON("/api/claims/summary");
     document.getElementById("claims-kpis").innerHTML=[kpiHTML(svgA,"orange","Open",fmtN(d.by_status.find(x=>x.status==="open")?.count||0)),kpiHTML(svgV,"green","Resolved",fmtN(d.by_status.find(x=>x.status==="resolved")?.count||0)),kpiHTML(svg$,"red","Total Paid",fmt$(d.total_paid))].join("");
-    mk("c-claims-type",{type:"doughnut",data:{labels:d.by_type.map(x=>x.type),datasets:[{data:d.by_type.map(x=>x.count),backgroundColor:PALETTE}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom",labels:{boxWidth:10,padding:6,font:{size:10}}}}}});
-    mk("c-claims-status",{type:"doughnut",data:{labels:d.by_status.map(x=>x.status),datasets:[{data:d.by_status.map(x=>x.count),backgroundColor:d.by_status.map(x=>({open:C.orange,investigating:C.accent,resolved:C.green,denied:C.red})[x.status]||"#555")}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom",labels:{boxWidth:10,padding:6,font:{size:10}}}}}});
-    mk("c-claims-reason",{type:"bar",data:{labels:d.by_reason.map(x=>x.reason.length>25?x.reason.slice(0,25)+"...":x.reason),datasets:[{data:d.by_reason.map(x=>x.count),backgroundColor:C.red,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:"y",plugins:{legend:{display:false}}}});
+    if(d.by_type.length){mk("c-claims-type",{type:"doughnut",data:{labels:d.by_type.map(x=>x.type),datasets:[{data:d.by_type.map(x=>x.count),backgroundColor:PALETTE}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom",labels:{boxWidth:10,padding:6,font:{size:10}}}}}});}
+    if(d.by_status.length){mk("c-claims-status",{type:"doughnut",data:{labels:d.by_status.map(x=>x.status),datasets:[{data:d.by_status.map(x=>x.count),backgroundColor:d.by_status.map(x=>({open:C.orange,investigating:C.accent,resolved:C.green,denied:C.red})[x.status]||"#555")}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom",labels:{boxWidth:10,padding:6,font:{size:10}}}}}});}
+    if(d.by_reason.length){mk("c-claims-reason",{type:"bar",data:{labels:d.by_reason.map(x=>x.reason.length>25?x.reason.slice(0,25)+"...":x.reason),datasets:[{data:d.by_reason.map(x=>x.count),backgroundColor:C.red,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:"y",plugins:{legend:{display:false}}}});}
 }
 
 // ===== WAREHOUSES =====
 async function loadWarehouses(){
     const data=await fetchJSON("/api/warehouses");
+    if(data.length){
     mk("c-wh-util",{type:"bar",data:{labels:data.map(d=>d.name),datasets:[{data:data.map(d=>d.utilization),backgroundColor:data.map(d=>d.utilization>85?C.red:d.utilization>70?C.orange:C.green),borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:"y",plugins:{legend:{display:false}},scales:{x:{min:0,max:100}}}});
     mk("c-wh-vol",{type:"bar",data:{labels:data.map(d=>d.name),datasets:[{data:data.map(d=>d.shipments_out),backgroundColor:C.accent,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:"y",plugins:{legend:{display:false}}}});
+    }
     document.querySelector("#wh-table tbody").innerHTML=data.map(d=>{const uc=d.utilization>85?"var(--red)":d.utilization>70?"var(--orange)":"var(--green)";return`<tr><td style="font-weight:600">${d.name}</td><td>${d.city}, ${d.state}</td><td>${d.region}</td><td>${fmtN(d.capacity)}</td><td>${fmtN(d.current_load)}</td><td><div style="display:flex;align-items:center;gap:8px"><div class="progress-bg" style="width:80px"><div class="progress-fill" style="width:${d.utilization}%;background:${uc}"></div></div><span style="color:${uc};font-weight:600;font-size:11px">${d.utilization}%</span></div></td><td>${fmtN(d.shipments_out)}</td></tr>`}).join("");
+}
+
+// ===== TEAM (enterprise) =====
+async function loadTeam(){
+    const data=await fetchJSON("/api/team");
+    if(data.error){document.getElementById("team-list").innerHTML=`<div class="empty-state"><p>${data.error}</p></div>`;return;}
+    document.getElementById("team-list").innerHTML=data.length?`<table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Invited</th></tr></thead><tbody>${data.map(m=>`<tr><td style="font-weight:600">${m.name||'-'}</td><td>${m.email}</td><td><span class="badge badge-${m.role==='admin'?'in_transit':m.role==='owner'?'delivered':'label_created'}">${m.role}</span></td><td><span class="badge badge-${m.status==='active'?'delivered':'pending'}">${m.status}</span></td><td style="color:var(--text-muted)">${new Date(m.invited_at).toLocaleDateString()}</td></tr>`).join("")}</tbody></table>`:'<div style="color:var(--text-muted);text-align:center;padding:30px">No team members yet. Invite your first member.</div>';
+}
+function showInviteTeam(){
+    openModal(`<h3>Invite Team Member</h3>
+        <div class="form-group"><label class="form-label">Email</label><input class="form-input" id="tm-email" type="email" placeholder="team@company.com"></div>
+        <div class="form-group"><label class="form-label">Name</label><input class="form-input" id="tm-name" placeholder="Team member name"></div>
+        <div class="form-group"><label class="form-label">Role</label>
+            <select class="form-select" id="tm-role"><option value="viewer">Viewer</option><option value="analyst">Analyst</option><option value="manager">Manager</option><option value="admin">Admin</option></select></div>
+        <div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-primary" onclick="inviteTeam()">Send Invite</button><button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);
+}
+async function inviteTeam(){
+    const r=await postJSON("/api/team",{email:document.getElementById("tm-email").value,name:document.getElementById("tm-name").value,role:document.getElementById("tm-role").value});
+    if(r.error){toast(r.error,"error");return;}
+    closeModal();toast("Invitation sent!","success");loadTeam();
+}
+
+// ===== PLATFORMS =====
+async function loadPlatforms(){
+    if(!currentUser||!currentUser.platforms){currentUser=await fetchJSON("/api/auth/me");}
+    if(!catalogs){catalogs=await fetchJSON("/api/onboarding/catalogs");}
+    const connected=currentUser.platforms||[];
+    const el=document.getElementById("platforms-list");
+    el.innerHTML=connected.length?connected.map(p=>{
+        const info=catalogs.platforms.find(x=>x.key===p.platform_key)||{};
+        return`<div class="pm-card"><div class="pm-icon" style="background:var(--green-dim);color:var(--green);font-size:14px">&#9679;</div>
+            <div class="pm-info"><div class="label">${p.platform_name}</div><div class="meta">${info.description||''} &middot; Connected ${p.connected_at?new Date(p.connected_at).toLocaleDateString():''}</div></div>
+            <div class="pm-actions"><span class="badge badge-active">${p.status}</span></div></div>`;
+    }).join(""):'<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg><h3>No platforms connected</h3><p>Connect platforms from your account settings to sync your shipping data.</p></div>';
 }
 
 // ===== ACCOUNT =====
 async function loadAccount(){
     const[me,activity]=await Promise.all([fetchJSON("/api/auth/me"),fetchJSON("/api/activity")]);
+    currentUser=me;
     document.getElementById("acct-name").value=me.name||"";document.getElementById("acct-email").value=me.email||"";
     document.getElementById("acct-company").value=me.company||"";document.getElementById("acct-phone").value=me.phone||"";
     document.getElementById("acct-plan").textContent=(me.plan||"").toUpperCase();
     document.getElementById("acct-role").textContent=me.role||"user";
     document.getElementById("acct-since").textContent=me.created_at?new Date(me.created_at).toLocaleDateString():"";
     document.getElementById("acct-apikey").textContent=me.api_key||"";
+    document.getElementById("acct-type").innerHTML=`<span class="account-type-badge ${me.account_type||'personal'}">${me.account_type||'personal'}</span>`;
     document.querySelector("#activity-table tbody").innerHTML=activity.slice(0,15).map(a=>`<tr><td><span class="badge badge-${a.action.includes("paid")?"paid":a.action.includes("created")?"in_transit":"label_created"}">${a.action.replace(/_/g," ")}</span></td><td>${a.details||"-"}</td><td style="color:var(--text-muted)">${new Date(a.created_at).toLocaleString()}</td></tr>`).join("");
 }
 async function updateAccount(){
@@ -678,10 +1440,10 @@ async function loadBilling(){
         kpiHTML(svgA,"red","Overdue",fmtN(summary.overdue_count)),
         kpiHTML(svgV,"blue","Payment Methods",fmtN(summary.payment_methods)),
     ].join("");
-    document.querySelector("#invoice-table tbody").innerHTML=invoices.map(inv=>{
+    document.querySelector("#invoice-table tbody").innerHTML=invoices.length?invoices.map(inv=>{
         const isOverdue=inv.status==="pending"&&new Date(inv.due_date)<new Date();
         return`<tr><td style="font-weight:600">${inv.invoice_number}</td><td>${inv.period_start} to ${inv.period_end}</td><td>${fmt$(inv.subtotal)}</td><td>${fmt$(inv.tax)}</td><td style="font-weight:600">${fmt$(inv.total)}</td><td><span class="badge badge-${isOverdue?"overdue":inv.status}">${isOverdue?"overdue":inv.status}</span></td><td style="color:var(--text-muted)">${new Date(inv.due_date).toLocaleDateString()}</td><td>${inv.status==="pending"?`<button class="btn btn-sm btn-success" onclick="payInvoice(${inv.id})">Pay Now</button>`:inv.paid_at?"Paid "+new Date(inv.paid_at).toLocaleDateString():"-"}</td></tr>`
-    }).join("");
+    }).join(""):'<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px">No invoices yet</td></tr>';
 }
 async function payInvoice(id){
     if(!confirm("Pay this invoice with your default payment method?"))return;
@@ -743,7 +1505,6 @@ function getTimeAgo(dateStr){
 async function openNotif(id){
     currentNotifId = id;
     const n = await fetchJSON(`/api/notifications/${id}`);
-    // Update list to reflect read state
     const item = allNotifs.find(x => x.id === id);
     if(item) item.read = 1;
     renderInboxList();
@@ -816,7 +1577,7 @@ async function deleteNotif(id){
     loadNotifications();
 }
 async function markAllRead(){await putJSON("/api/notifications/read-all");toast("All marked as read","success");loadNotifications()}
-async function loadNotifBadge(){const r=await fetchJSON("/api/notifications/unread-count");const b=document.getElementById("notif-badge");if(r.count>0){b.textContent=r.count;b.style.display="inline"}else{b.style.display="none"}}
+async function loadNotifBadge(){try{const r=await fetchJSON("/api/notifications/unread-count");const b=document.getElementById("notif-badge");if(r.count>0){b.textContent=r.count;b.style.display="inline"}else{b.style.display="none"}}catch(e){}}
 
 // ===== SETTINGS =====
 async function loadSettings(){
@@ -840,8 +1601,20 @@ async function addAddr(){
     closeModal();toast("Address saved!","success");loadSettings();
 }
 
-// Init
-loadDashboard();
+// ===== INIT: Check auth state =====
+async function init(){
+    try{
+        currentUser=await fetchJSON("/api/auth/me");
+        if(!currentUser.onboarding_complete&&currentUser.email!=="admin@shipflow.com"){
+            startOnboarding();
+        } else {
+            showApp();
+        }
+    }catch(e){
+        showAuth();
+    }
+}
+init();
 </script>
 </body>
 </html>

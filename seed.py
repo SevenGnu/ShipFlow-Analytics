@@ -94,9 +94,10 @@ def seed():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
 
-    for t in ["activity_log","notifications","invoice_lines","invoices","shipping_rates",
-              "saved_addresses","payment_methods","shipment_events","claims","shipments",
-              "customers","warehouses","carriers","accounts"]:
+    for t in ["meeting_requests","enterprise_questionnaires","team_members","connected_platforms",
+              "account_use_cases","pricing_tiers","activity_log","notifications","invoice_lines",
+              "invoices","shipping_rates","saved_addresses","payment_methods","shipment_events",
+              "claims","shipments","customers","warehouses","carriers","accounts"]:
         c.execute(f"DELETE FROM {t}")
 
     now = datetime.now(timezone.utc)
@@ -105,28 +106,30 @@ def seed():
     # ===== ACCOUNTS =====
     accounts = []
 
-    # Admin account
+    # Admin/demo account — all seed data is tied to this account
     salt = secrets.token_hex(16)
     api_key = "sf_" + secrets.token_hex(24)
-    c.execute("""INSERT INTO accounts (email, password_hash, salt, name, company, phone, role, plan, api_key, status, created_at, last_login)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+    c.execute("""INSERT INTO accounts (email, password_hash, salt, name, company, phone, role, plan, account_type, api_key, status, onboarding_complete, created_at, last_login)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
               ("admin@shipflow.com", hash_pw("admin123", salt), salt, "Julian Grossman", "ShipFlow Inc",
-               "555-0100", "admin", "enterprise", api_key, "active", (now - timedelta(days=120)).isoformat(), now.isoformat()))
-    accounts.append({"id": c.lastrowid, "plan": "enterprise"})
+               "555-0100", "admin", "enterprise", "enterprise", api_key, "active", 1, (now - timedelta(days=120)).isoformat(), now.isoformat()))
+    demo_account_id = c.lastrowid
+    accounts.append({"id": demo_account_id, "plan": "enterprise"})
 
-    # More accounts
+    # More accounts (these are extra demo accounts, all data still tied to demo)
     for i in range(15):
         first = random.choice(FIRST_NAMES)
         last = random.choice(LAST_NAMES)
         salt = secrets.token_hex(16)
-        plan = random.choices(["starter","professional","enterprise"], weights=[50,35,15])[0]
+        plan = random.choices(["starter","pro","enterprise_starter"], weights=[50,35,15])[0]
+        acct_type = "enterprise" if "enterprise" in plan else "personal"
         created = start_date + timedelta(days=random.randint(0, 90))
-        c.execute("""INSERT INTO accounts (email, password_hash, salt, name, company, phone, role, plan, api_key, status, created_at, last_login)
-                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
-                  (f"{first.lower()}.{last.lower()}@example.com", hash_pw("password123", salt), salt,
+        c.execute("""INSERT INTO accounts (email, password_hash, salt, name, company, phone, role, plan, account_type, api_key, status, onboarding_complete, created_at, last_login)
+                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                  (f"{first.lower()}.{last.lower()}{i}@example.com", hash_pw("password123", salt), salt,
                    f"{first} {last}", random.choice([co for co in COMPANIES if co]),
-                   f"555-{random.randint(1000,9999)}", "user", plan, "sf_" + secrets.token_hex(24),
-                   "active", created.isoformat(), (now - timedelta(days=random.randint(0,7))).isoformat()))
+                   f"555-{random.randint(1000,9999)}", "user", plan, acct_type, "sf_" + secrets.token_hex(24),
+                   "active", 1, created.isoformat(), (now - timedelta(days=random.randint(0,7))).isoformat()))
         accounts.append({"id": c.lastrowid, "plan": plan})
 
     # ===== PAYMENT METHODS =====
@@ -394,6 +397,19 @@ def seed():
                        random.choice(rdata["cities"]), random.choice(rdata["states"]),
                        random.choice(rdata["zips"]), f"555-{random.randint(1000,9999)}",
                        0, (now - timedelta(days=random.randint(1,60))).isoformat()))
+
+    # ===== DEMO USE CASES & PLATFORMS (for demo account only) =====
+    demo_use_cases = ["domestic_shipping", "international_shipping", "ecommerce", "marketplace", "wholesale_b2b"]
+    for uc in demo_use_cases:
+        c.execute("INSERT OR IGNORE INTO account_use_cases (account_id, use_case) VALUES (?,?)", (demo_account_id, uc))
+
+    demo_platforms = [
+        ("shopify", "Shopify"), ("amazon", "Amazon Seller"), ("stripe", "Stripe"),
+        ("quickbooks", "QuickBooks"), ("slack", "Slack"), ("google_analytics", "Google Analytics")
+    ]
+    for pkey, pname in demo_platforms:
+        c.execute("""INSERT OR IGNORE INTO connected_platforms (account_id, platform_key, platform_name, status, connected_at)
+                     VALUES (?,?,?,?,?)""", (demo_account_id, pkey, pname, "connected", (now - timedelta(days=60)).isoformat()))
 
     # ===== NOTIFICATIONS (rich, contextual) =====
 

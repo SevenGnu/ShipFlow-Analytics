@@ -12,6 +12,9 @@ app.secret_key = secrets.token_hex(32)
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "analytics.db")
 
+# Demo account ID — only this account gets seed data
+DEMO_ACCOUNT_EMAIL = "admin@shipflow.com"
+
 
 def get_db():
     if "db" not in g:
@@ -44,10 +47,103 @@ def init_db():
             phone TEXT,
             role TEXT NOT NULL DEFAULT 'user',
             plan TEXT NOT NULL DEFAULT 'starter',
+            account_type TEXT NOT NULL DEFAULT 'personal',
             api_key TEXT UNIQUE,
             status TEXT NOT NULL DEFAULT 'active',
+            onboarding_complete INTEGER DEFAULT 0,
+            company_size TEXT,
+            industry TEXT,
+            monthly_shipments TEXT,
+            annual_revenue TEXT,
+            team_size TEXT,
+            enterprise_quote REAL,
+            enterprise_quote_status TEXT DEFAULT 'none',
             created_at TEXT NOT NULL,
             last_login TEXT
+        );
+
+        -- ===== USE CASES =====
+        CREATE TABLE IF NOT EXISTS account_use_cases (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account_id INTEGER NOT NULL,
+            use_case TEXT NOT NULL,
+            FOREIGN KEY (account_id) REFERENCES accounts(id),
+            UNIQUE(account_id, use_case)
+        );
+
+        -- ===== CONNECTED PLATFORMS =====
+        CREATE TABLE IF NOT EXISTS connected_platforms (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account_id INTEGER NOT NULL,
+            platform_key TEXT NOT NULL,
+            platform_name TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            config TEXT,
+            connected_at TEXT,
+            FOREIGN KEY (account_id) REFERENCES accounts(id),
+            UNIQUE(account_id, platform_key)
+        );
+
+        -- ===== PRICING TIERS =====
+        CREATE TABLE IF NOT EXISTS pricing_tiers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tier_key TEXT UNIQUE NOT NULL,
+            name TEXT NOT NULL,
+            account_type TEXT NOT NULL,
+            price_monthly REAL NOT NULL DEFAULT 0,
+            description TEXT,
+            features TEXT,
+            max_shipments INTEGER,
+            max_platforms INTEGER,
+            max_team_members INTEGER,
+            sort_order INTEGER DEFAULT 0
+        );
+
+        -- ===== ENTERPRISE QUESTIONNAIRE =====
+        CREATE TABLE IF NOT EXISTS enterprise_questionnaires (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account_id INTEGER NOT NULL,
+            company_name TEXT,
+            company_size TEXT,
+            industry TEXT,
+            monthly_shipments TEXT,
+            annual_revenue TEXT,
+            team_size TEXT,
+            current_tools TEXT,
+            pain_points TEXT,
+            timeline TEXT,
+            additional_notes TEXT,
+            submitted_at TEXT NOT NULL,
+            FOREIGN KEY (account_id) REFERENCES accounts(id)
+        );
+
+        -- ===== MEETING REQUESTS =====
+        CREATE TABLE IF NOT EXISTS meeting_requests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account_id INTEGER NOT NULL,
+            contact_name TEXT NOT NULL,
+            contact_email TEXT NOT NULL,
+            contact_phone TEXT,
+            preferred_date TEXT,
+            preferred_time TEXT,
+            timezone TEXT DEFAULT 'EST',
+            notes TEXT,
+            status TEXT NOT NULL DEFAULT 'pending',
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (account_id) REFERENCES accounts(id)
+        );
+
+        -- ===== TEAM MEMBERS (enterprise) =====
+        CREATE TABLE IF NOT EXISTS team_members (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account_id INTEGER NOT NULL,
+            email TEXT NOT NULL,
+            name TEXT NOT NULL,
+            role TEXT NOT NULL DEFAULT 'viewer',
+            status TEXT NOT NULL DEFAULT 'invited',
+            invited_at TEXT NOT NULL,
+            joined_at TEXT,
+            FOREIGN KEY (account_id) REFERENCES accounts(id)
         );
 
         -- ===== PAYMENT METHODS =====
@@ -295,12 +391,6 @@ def login_required(f):
             if acct:
                 session["account_id"] = acct["id"]
                 return f(*args, **kwargs)
-        # For demo purposes, auto-login as first account
-        db = get_db()
-        acct = db.execute("SELECT id FROM accounts LIMIT 1").fetchone()
-        if acct:
-            session["account_id"] = acct["id"]
-            return f(*args, **kwargs)
         return jsonify({"error": "Authentication required"}), 401
     return decorated
 
@@ -337,23 +427,26 @@ def signup():
     pw_hash = _hash_pw(data["password"], salt)
     api_key = _gen_api_key()
     now = _now().isoformat()
+    account_type = data.get("account_type", "personal")
+    plan = data.get("plan", "free" if account_type == "personal" else "enterprise_starter")
 
-    db.execute("""INSERT INTO accounts (email, password_hash, salt, name, company, phone, plan, api_key, created_at, last_login)
-                  VALUES (?,?,?,?,?,?,?,?,?,?)""",
+    db.execute("""INSERT INTO accounts (email, password_hash, salt, name, company, phone, plan, account_type,
+                  api_key, onboarding_complete, created_at, last_login)
+                  VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
                (data["email"], pw_hash, salt, data["name"], data.get("company"),
-                data.get("phone"), data.get("plan", "starter"), api_key, now, now))
+                data.get("phone"), plan, account_type, api_key, 0, now, now))
     db.commit()
 
     acct = db.execute("SELECT * FROM accounts WHERE email=?", (data["email"],)).fetchone()
     session["account_id"] = acct["id"]
 
-    # Log activity
     db.execute("INSERT INTO activity_log (account_id, action, details, created_at) VALUES (?,?,?,?)",
-               (acct["id"], "account_created", "New account signup", now))
+               (acct["id"], "account_created", f"New {account_type} account signup", now))
     db.commit()
 
     return jsonify({"id": acct["id"], "email": acct["email"], "name": acct["name"],
-                     "api_key": api_key, "plan": acct["plan"]}), 201
+                     "api_key": api_key, "plan": acct["plan"], "account_type": account_type,
+                     "onboarding_complete": 0}), 201
 
 
 @app.route("/api/auth/login", methods=["POST"])
@@ -379,7 +472,9 @@ def login():
     db.commit()
 
     return jsonify({"id": acct["id"], "email": acct["email"], "name": acct["name"],
-                     "plan": acct["plan"], "api_key": acct["api_key"]})
+                     "plan": acct["plan"], "api_key": acct["api_key"],
+                     "account_type": acct["account_type"] if "account_type" in acct.keys() else "personal",
+                     "onboarding_complete": acct["onboarding_complete"] if "onboarding_complete" in acct.keys() else 1})
 
 
 @app.route("/api/auth/logout", methods=["POST"])
@@ -392,9 +487,19 @@ def logout():
 @login_required
 def me():
     db = get_db()
-    acct = db.execute("SELECT id, email, name, company, phone, role, plan, api_key, status, created_at, last_login FROM accounts WHERE id=?",
+    acct = db.execute("""SELECT id, email, name, company, phone, role, plan, account_type, api_key, status,
+                         onboarding_complete, company_size, industry, monthly_shipments, annual_revenue,
+                         team_size, enterprise_quote, enterprise_quote_status, created_at, last_login
+                         FROM accounts WHERE id=?""",
                       (get_account_id(),)).fetchone()
-    return jsonify(dict(acct))
+    result = dict(acct)
+    # Get use cases
+    use_cases = db.execute("SELECT use_case FROM account_use_cases WHERE account_id=?", (get_account_id(),)).fetchall()
+    result["use_cases"] = [r["use_case"] for r in use_cases]
+    # Get connected platforms
+    platforms = db.execute("SELECT * FROM connected_platforms WHERE account_id=?", (get_account_id(),)).fetchall()
+    result["platforms"] = [dict(p) for p in platforms]
+    return jsonify(result)
 
 
 @app.route("/api/auth/update", methods=["PUT"])
@@ -1188,6 +1293,252 @@ def list_carriers():
 
 
 # ============================================================
+#  ONBOARDING & PRICING
+# ============================================================
+
+PLATFORM_CATALOG = [
+    {"key": "shopify", "name": "Shopify", "category": "ecommerce", "difficulty": 1, "free": True, "description": "Sync orders and inventory from your Shopify store"},
+    {"key": "woocommerce", "name": "WooCommerce", "category": "ecommerce", "difficulty": 1, "free": True, "description": "Connect your WordPress WooCommerce store"},
+    {"key": "bigcommerce", "name": "BigCommerce", "category": "ecommerce", "difficulty": 1, "free": True, "description": "Import orders from BigCommerce"},
+    {"key": "amazon", "name": "Amazon Seller", "category": "marketplace", "difficulty": 2, "free": False, "description": "Sync Amazon Seller Central orders"},
+    {"key": "ebay", "name": "eBay", "category": "marketplace", "difficulty": 2, "free": True, "description": "Connect your eBay seller account"},
+    {"key": "etsy", "name": "Etsy", "category": "marketplace", "difficulty": 1, "free": True, "description": "Import Etsy shop orders"},
+    {"key": "walmart", "name": "Walmart Marketplace", "category": "marketplace", "difficulty": 2, "free": False, "description": "Sync Walmart marketplace orders"},
+    {"key": "stripe", "name": "Stripe", "category": "payments", "difficulty": 1, "free": True, "description": "Track payments and revenue via Stripe"},
+    {"key": "paypal_business", "name": "PayPal Business", "category": "payments", "difficulty": 1, "free": True, "description": "Connect PayPal for payment tracking"},
+    {"key": "square", "name": "Square", "category": "payments", "difficulty": 1, "free": True, "description": "Sync Square POS transactions"},
+    {"key": "quickbooks", "name": "QuickBooks", "category": "accounting", "difficulty": 2, "free": False, "description": "Sync invoices and expenses with QuickBooks"},
+    {"key": "xero", "name": "Xero", "category": "accounting", "difficulty": 2, "free": False, "description": "Connect Xero for accounting integration"},
+    {"key": "google_analytics", "name": "Google Analytics", "category": "analytics", "difficulty": 1, "free": True, "description": "Track website traffic and conversions"},
+    {"key": "google_sheets", "name": "Google Sheets", "category": "productivity", "difficulty": 1, "free": True, "description": "Export data to Google Sheets automatically"},
+    {"key": "slack", "name": "Slack", "category": "communication", "difficulty": 1, "free": True, "description": "Get shipping alerts in Slack channels"},
+    {"key": "hubspot", "name": "HubSpot", "category": "crm", "difficulty": 2, "free": False, "description": "Sync customer data with HubSpot CRM"},
+    {"key": "salesforce", "name": "Salesforce", "category": "crm", "difficulty": 3, "free": False, "description": "Enterprise CRM integration with Salesforce"},
+    {"key": "zapier", "name": "Zapier", "category": "automation", "difficulty": 1, "free": True, "description": "Connect 5000+ apps through Zapier"},
+    {"key": "shipstation", "name": "ShipStation", "category": "shipping", "difficulty": 2, "free": False, "description": "Sync with ShipStation for multi-carrier shipping"},
+    {"key": "easypost", "name": "EasyPost", "category": "shipping", "difficulty": 3, "free": False, "description": "Advanced shipping API integration"},
+    {"key": "customs_api", "name": "Customs / Trade API", "category": "international", "difficulty": 3, "free": False, "description": "Automate customs declarations and duties"},
+    {"key": "warehouse_mgmt", "name": "Warehouse Management (WMS)", "category": "logistics", "difficulty": 3, "free": False, "description": "Connect your WMS for inventory sync"},
+    {"key": "erp_sap", "name": "SAP ERP", "category": "enterprise", "difficulty": 3, "free": False, "description": "Full SAP integration for enterprise logistics"},
+    {"key": "erp_oracle", "name": "Oracle NetSuite", "category": "enterprise", "difficulty": 3, "free": False, "description": "Oracle NetSuite ERP integration"},
+]
+
+USE_CASE_CATALOG = [
+    {"key": "domestic_shipping", "name": "Domestic Shipping", "icon": "truck", "description": "Ship within the US"},
+    {"key": "international_shipping", "name": "International / Overseas Shipping", "icon": "globe", "description": "Ship internationally with customs handling"},
+    {"key": "ecommerce", "name": "E-Commerce", "icon": "cart", "description": "Online store order fulfillment"},
+    {"key": "dropshipping", "name": "Dropshipping", "icon": "box", "description": "Dropship products from suppliers"},
+    {"key": "marketplace", "name": "Marketplace Selling", "icon": "store", "description": "Sell on Amazon, eBay, Etsy, etc."},
+    {"key": "wholesale_b2b", "name": "Wholesale / B2B", "icon": "building", "description": "Bulk and business-to-business shipping"},
+    {"key": "fulfillment_3pl", "name": "Fulfillment / 3PL", "icon": "warehouse", "description": "Third-party logistics and fulfillment"},
+    {"key": "subscription_box", "name": "Subscription Box", "icon": "refresh", "description": "Recurring subscription box shipments"},
+    {"key": "returns_management", "name": "Returns Management", "icon": "return", "description": "Manage and process customer returns"},
+    {"key": "freight_ltl", "name": "Freight / LTL", "icon": "freight", "description": "Large freight and less-than-truckload"},
+    {"key": "cold_chain", "name": "Cold Chain / Perishables", "icon": "snowflake", "description": "Temperature-controlled shipping"},
+    {"key": "hazmat", "name": "Hazardous Materials", "icon": "warning", "description": "Regulated hazmat shipping compliance"},
+]
+
+PERSONAL_TIERS = [
+    {"key": "free", "name": "Free", "price": 0, "description": "Get started with basic shipping analytics",
+     "features": ["Up to 50 shipments/month", "2 platform connections", "Basic analytics dashboard", "Email support", "1 user"],
+     "max_shipments": 50, "max_platforms": 2, "max_team": 1},
+    {"key": "starter", "name": "Starter", "price": 19, "description": "For growing sellers and small businesses",
+     "features": ["Up to 500 shipments/month", "5 platform connections", "Full analytics suite", "Priority email support", "Rate calculator", "1 user"],
+     "max_shipments": 500, "max_platforms": 5, "max_team": 1},
+    {"key": "pro", "name": "Pro", "price": 49, "description": "For serious sellers who need advanced tools",
+     "features": ["Up to 5,000 shipments/month", "15 platform connections", "Advanced analytics & reports", "Priority support + chat", "API access", "Custom alerts", "3 users"],
+     "max_shipments": 5000, "max_platforms": 15, "max_team": 3},
+    {"key": "business", "name": "Business", "price": 99, "description": "For teams managing high-volume shipping",
+     "features": ["Up to 25,000 shipments/month", "Unlimited platform connections", "All analytics features", "Phone + chat support", "Full API access", "Custom integrations", "10 users", "Priority carrier rates"],
+     "max_shipments": 25000, "max_platforms": 999, "max_team": 10},
+]
+
+ENTERPRISE_SIZE_PRICING = [
+    {"size": "1-50", "label": "Small (1-50 employees)", "min_price": 199, "max_price": 499},
+    {"size": "51-200", "label": "Mid-size (51-200 employees)", "min_price": 499, "max_price": 1499},
+    {"size": "201-500", "label": "Large (201-500 employees)", "min_price": 1499, "max_price": 2999},
+    {"size": "501-1000", "label": "Enterprise (501-1000 employees)", "min_price": 2999, "max_price": 4999},
+    {"size": "1000+", "label": "Global (1000+ employees)", "min_price": 4999, "max_price": 9999},
+]
+
+
+@app.route("/api/onboarding/catalogs")
+def onboarding_catalogs():
+    return jsonify({
+        "platforms": PLATFORM_CATALOG,
+        "use_cases": USE_CASE_CATALOG,
+        "personal_tiers": PERSONAL_TIERS,
+        "enterprise_pricing": ENTERPRISE_SIZE_PRICING,
+    })
+
+
+@app.route("/api/onboarding/save-use-cases", methods=["POST"])
+@login_required
+def save_use_cases():
+    data = request.json
+    use_cases = data.get("use_cases", [])
+    db = get_db()
+    aid = get_account_id()
+    db.execute("DELETE FROM account_use_cases WHERE account_id=?", (aid,))
+    for uc in use_cases:
+        db.execute("INSERT INTO account_use_cases (account_id, use_case) VALUES (?,?)", (aid, uc))
+    db.commit()
+    return jsonify({"ok": True, "count": len(use_cases)})
+
+
+@app.route("/api/onboarding/save-platforms", methods=["POST"])
+@login_required
+def save_platforms():
+    data = request.json
+    platforms = data.get("platforms", [])
+    db = get_db()
+    aid = get_account_id()
+    now = _now().isoformat()
+    db.execute("DELETE FROM connected_platforms WHERE account_id=?", (aid,))
+    for pkey in platforms:
+        pinfo = next((p for p in PLATFORM_CATALOG if p["key"] == pkey), None)
+        if pinfo:
+            db.execute("""INSERT INTO connected_platforms (account_id, platform_key, platform_name, status, connected_at)
+                          VALUES (?,?,?,?,?)""", (aid, pkey, pinfo["name"], "connected", now))
+    db.commit()
+    return jsonify({"ok": True, "count": len(platforms)})
+
+
+@app.route("/api/onboarding/save-plan", methods=["POST"])
+@login_required
+def save_plan():
+    data = request.json
+    plan = data.get("plan", "free")
+    db = get_db()
+    aid = get_account_id()
+    db.execute("UPDATE accounts SET plan=? WHERE id=?", (plan, aid))
+    db.commit()
+    return jsonify({"ok": True, "plan": plan})
+
+
+@app.route("/api/onboarding/enterprise-questionnaire", methods=["POST"])
+@login_required
+def submit_enterprise_questionnaire():
+    data = request.json
+    db = get_db()
+    aid = get_account_id()
+    now = _now().isoformat()
+
+    db.execute("""INSERT INTO enterprise_questionnaires
+        (account_id, company_name, company_size, industry, monthly_shipments, annual_revenue,
+         team_size, current_tools, pain_points, timeline, additional_notes, submitted_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+        (aid, data.get("company_name"), data.get("company_size"), data.get("industry"),
+         data.get("monthly_shipments"), data.get("annual_revenue"), data.get("team_size"),
+         data.get("current_tools"), data.get("pain_points"), data.get("timeline"),
+         data.get("additional_notes"), now))
+
+    # Calculate quote based on company size
+    size = data.get("company_size", "1-50")
+    pricing = next((p for p in ENTERPRISE_SIZE_PRICING if p["size"] == size), ENTERPRISE_SIZE_PRICING[0])
+    # Base quote on midpoint, adjusted by shipment volume
+    base = (pricing["min_price"] + pricing["max_price"]) / 2
+    shipment_vol = data.get("monthly_shipments", "0-500")
+    if "5000" in shipment_vol or "10000" in shipment_vol:
+        base *= 1.3
+    elif "1000" in shipment_vol:
+        base *= 1.1
+    quote = round(min(max(base, pricing["min_price"]), pricing["max_price"]), 0)
+
+    db.execute("""UPDATE accounts SET company_size=?, industry=?, monthly_shipments=?, annual_revenue=?,
+                  team_size=?, enterprise_quote=?, enterprise_quote_status='quoted', company=?
+                  WHERE id=?""",
+        (data.get("company_size"), data.get("industry"), data.get("monthly_shipments"),
+         data.get("annual_revenue"), data.get("team_size"), quote, data.get("company_name"), aid))
+    db.commit()
+
+    return jsonify({"ok": True, "quote": quote, "min_price": pricing["min_price"], "max_price": pricing["max_price"]})
+
+
+@app.route("/api/onboarding/accept-quote", methods=["POST"])
+@login_required
+def accept_enterprise_quote():
+    db = get_db()
+    aid = get_account_id()
+    db.execute("UPDATE accounts SET enterprise_quote_status='accepted' WHERE id=?", (aid,))
+    db.commit()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/onboarding/request-meeting", methods=["POST"])
+@login_required
+def request_meeting():
+    data = request.json
+    db = get_db()
+    aid = get_account_id()
+    now = _now().isoformat()
+    db.execute("""INSERT INTO meeting_requests (account_id, contact_name, contact_email, contact_phone,
+                  preferred_date, preferred_time, timezone, notes, created_at)
+                  VALUES (?,?,?,?,?,?,?,?,?)""",
+        (aid, data.get("contact_name", ""), data.get("contact_email", ""),
+         data.get("contact_phone"), data.get("preferred_date"), data.get("preferred_time"),
+         data.get("timezone", "EST"), data.get("notes"), now))
+    db.execute("UPDATE accounts SET enterprise_quote_status='meeting_requested' WHERE id=?", (aid,))
+    db.commit()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/onboarding/complete", methods=["POST"])
+@login_required
+def complete_onboarding():
+    db = get_db()
+    aid = get_account_id()
+    db.execute("UPDATE accounts SET onboarding_complete=1 WHERE id=?", (aid,))
+    db.commit()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/team", methods=["GET"])
+@login_required
+def list_team():
+    db = get_db()
+    aid = get_account_id()
+    acct = db.execute("SELECT role, account_type FROM accounts WHERE id=?", (aid,)).fetchone()
+    if acct["account_type"] != "enterprise":
+        return jsonify({"error": "Team management is an enterprise feature"}), 403
+    members = db.execute("SELECT * FROM team_members WHERE account_id=? ORDER BY invited_at DESC", (aid,)).fetchall()
+    return jsonify([dict(m) for m in members])
+
+
+@app.route("/api/team", methods=["POST"])
+@login_required
+def invite_team_member():
+    data = request.json
+    db = get_db()
+    aid = get_account_id()
+    now = _now().isoformat()
+    acct = db.execute("SELECT account_type FROM accounts WHERE id=?", (aid,)).fetchone()
+    if acct["account_type"] != "enterprise":
+        return jsonify({"error": "Team management is an enterprise feature"}), 403
+    db.execute("""INSERT INTO team_members (account_id, email, name, role, invited_at)
+                  VALUES (?,?,?,?,?)""",
+        (aid, data.get("email"), data.get("name", ""), data.get("role", "viewer"), now))
+    db.commit()
+    return jsonify({"ok": True}), 201
+
+
+@app.route("/api/pricing/tiers")
+def get_pricing_tiers():
+    return jsonify({
+        "personal": PERSONAL_TIERS,
+        "enterprise": ENTERPRISE_SIZE_PRICING,
+        "enterprise_features": [
+            "Unlimited shipments", "Unlimited platform connections", "Unlimited team members",
+            "Admin roles: Owner, Admin, Manager, Analyst, Viewer",
+            "SSO / SAML authentication", "Dedicated account manager",
+            "Custom analytics & reporting", "SLA guarantee",
+            "Priority API rate limits", "Onboarding & training",
+            "Custom integrations", "Audit log & compliance"
+        ]
+    })
+
+
+# ============================================================
 #  STARTUP
 # ============================================================
 
@@ -1303,8 +1654,24 @@ def print_banner():
 """)
 
 
+def seed_pricing_tiers():
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT COUNT(*) FROM pricing_tiers")
+    if c.fetchone()[0] == 0:
+        for i, t in enumerate(PERSONAL_TIERS):
+            c.execute("""INSERT INTO pricing_tiers (tier_key, name, account_type, price_monthly, description, features,
+                         max_shipments, max_platforms, max_team_members, sort_order)
+                         VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                (t["key"], t["name"], "personal", t["price"], t["description"],
+                 json.dumps(t["features"]), t["max_shipments"], t["max_platforms"], t["max_team"], i))
+        conn.commit()
+    conn.close()
+
+
 if __name__ == "__main__":
     init_db()
+    seed_pricing_tiers()
     print_banner()
     print(f"\033[92m\033[1m  ▶ Server running at: http://localhost:8080\033[0m")
     print(f"\033[2m  Press Ctrl+C to stop\033[0m\n")
