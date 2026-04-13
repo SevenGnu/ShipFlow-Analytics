@@ -3,9 +3,14 @@ import os
 import hashlib
 import secrets
 import json
+import re as _re
+import urllib.request
 from datetime import datetime, timedelta, timezone
 from functools import wraps
+from dotenv import load_dotenv
+load_dotenv()
 from flask import Flask, jsonify, request, send_from_directory, session, g
+import jwt
 
 app = Flask(__name__, static_folder="static")
 app.secret_key = secrets.token_hex(32)
@@ -13,7 +18,14 @@ app.secret_key = secrets.token_hex(32)
 DB_PATH = os.path.join(os.path.dirname(__file__), "analytics.db")
 
 # Demo account ID — only this account gets seed data
-DEMO_ACCOUNT_EMAIL = "admin@shipflow.com"
+DEMO_ACCOUNT_EMAIL = "admin@packetbase.com"
+
+# Clerk configuration
+CLERK_SECRET_KEY = os.environ.get("CLERK_SECRET_KEY")
+CLERK_PUBLISHABLE_KEY = os.environ.get("CLERK_PUBLISHABLE_KEY")
+CLERK_ISSUER = os.environ.get("CLERK_ISSUER")  # e.g. "https://your-app.clerk.accounts.dev"
+CLERK_ENABLED = bool(CLERK_SECRET_KEY and CLERK_PUBLISHABLE_KEY and CLERK_ISSUER)
+_clerk_jwks_cache = None
 
 
 def get_db():
@@ -58,8 +70,10 @@ def init_db():
             team_size TEXT,
             enterprise_quote REAL,
             enterprise_quote_status TEXT DEFAULT 'none',
+            auto_create_records INTEGER DEFAULT 0,
             created_at TEXT NOT NULL,
-            last_login TEXT
+            last_login TEXT,
+            clerk_user_id TEXT UNIQUE
         );
 
         -- ===== USE CASES =====
@@ -226,7 +240,7 @@ def init_db():
             subject TEXT NOT NULL DEFAULT '',
             message TEXT NOT NULL,
             body TEXT NOT NULL DEFAULT '',
-            sender TEXT NOT NULL DEFAULT 'ShipFlow System',
+            sender TEXT NOT NULL DEFAULT 'PacketBase System',
             entity_type TEXT,
             entity_id INTEGER,
             action_label TEXT,
@@ -345,6 +359,101 @@ def init_db():
             FOREIGN KEY (shipment_id) REFERENCES shipments(id)
         );
 
+        -- ===== CONNECTED EMAILS =====
+        CREATE TABLE IF NOT EXISTS connected_emails (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account_id INTEGER NOT NULL,
+            email_address TEXT NOT NULL,
+            label TEXT NOT NULL DEFAULT 'general',
+            provider TEXT NOT NULL DEFAULT 'gmail',
+            is_primary INTEGER DEFAULT 0,
+            connected_at TEXT NOT NULL,
+            FOREIGN KEY (account_id) REFERENCES accounts(id)
+        );
+
+        -- ===== INBOX MESSAGES =====
+        CREATE TABLE IF NOT EXISTS inbox_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account_id INTEGER NOT NULL,
+            connected_email_id INTEGER NOT NULL,
+            from_address TEXT NOT NULL,
+            from_name TEXT NOT NULL DEFAULT '',
+            to_address TEXT NOT NULL,
+            subject TEXT NOT NULL,
+            body TEXT NOT NULL DEFAULT '',
+            preview TEXT NOT NULL DEFAULT '',
+            category TEXT NOT NULL DEFAULT 'general',
+            is_read INTEGER DEFAULT 0,
+            is_starred INTEGER DEFAULT 0,
+            is_trashed INTEGER DEFAULT 0,
+            claim_id INTEGER,
+            received_at TEXT NOT NULL,
+            FOREIGN KEY (account_id) REFERENCES accounts(id),
+            FOREIGN KEY (connected_email_id) REFERENCES connected_emails(id),
+            FOREIGN KEY (claim_id) REFERENCES claims(id)
+        );
+
+        -- ===== PRODUCTS =====
+        CREATE TABLE IF NOT EXISTS products (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            sku TEXT,
+            weight_lbs REAL NOT NULL DEFAULT 1,
+            length_in REAL DEFAULT 0,
+            width_in REAL DEFAULT 0,
+            height_in REAL DEFAULT 0,
+            declared_value REAL DEFAULT 0,
+            category TEXT DEFAULT 'general',
+            is_fragile INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (account_id) REFERENCES accounts(id)
+        );
+
+        -- ===== SHIPMENT ITEMS =====
+        CREATE TABLE IF NOT EXISTS shipment_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            shipment_id INTEGER NOT NULL,
+            product_id INTEGER,
+            product_name TEXT NOT NULL,
+            quantity INTEGER NOT NULL DEFAULT 1,
+            weight_lbs REAL NOT NULL,
+            declared_value REAL DEFAULT 0,
+            FOREIGN KEY (shipment_id) REFERENCES shipments(id),
+            FOREIGN KEY (product_id) REFERENCES products(id)
+        );
+
+        -- ===== CUSTOMER ADDRESSES =====
+        CREATE TABLE IF NOT EXISTS customer_addresses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            customer_id INTEGER NOT NULL,
+            label TEXT NOT NULL DEFAULT 'primary',
+            address TEXT NOT NULL,
+            city TEXT NOT NULL,
+            state TEXT NOT NULL,
+            zip TEXT,
+            is_default INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (customer_id) REFERENCES customers(id)
+        );
+
+        -- ===== EMAIL REVIEW QUEUE =====
+        CREATE TABLE IF NOT EXISTS email_review_queue (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account_id INTEGER NOT NULL,
+            inbox_message_id INTEGER NOT NULL,
+            extracted_data TEXT NOT NULL DEFAULT '{}',
+            issues TEXT NOT NULL DEFAULT '[]',
+            status TEXT NOT NULL DEFAULT 'pending',
+            linked_entity_type TEXT,
+            linked_entity_id INTEGER,
+            auto_created INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL,
+            resolved_at TEXT,
+            FOREIGN KEY (account_id) REFERENCES accounts(id),
+            FOREIGN KEY (inbox_message_id) REFERENCES inbox_messages(id)
+        );
+
         CREATE TABLE IF NOT EXISTS saved_addresses (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             account_id INTEGER NOT NULL,
@@ -360,6 +469,11 @@ def init_db():
             FOREIGN KEY (account_id) REFERENCES accounts(id)
         );
     """)
+    # Migration: add clerk_user_id to existing databases
+    try:
+        c.execute("ALTER TABLE accounts ADD COLUMN clerk_user_id TEXT UNIQUE")
+    except sqlite3.OperationalError:
+        pass  # Column already exists
     conn.commit()
     conn.close()
 
@@ -375,28 +489,93 @@ def _hash_pw(password, salt):
 
 
 def _gen_api_key():
-    return "sf_" + secrets.token_hex(24)
+    return "pb_" + secrets.token_hex(24)
+
+
+def _get_clerk_jwks():
+    """Fetch and cache Clerk's JWKS public keys."""
+    global _clerk_jwks_cache
+    if _clerk_jwks_cache is not None:
+        return _clerk_jwks_cache
+    url = f"{CLERK_ISSUER}/.well-known/jwks.json"
+    resp = urllib.request.urlopen(url)
+    _clerk_jwks_cache = json.loads(resp.read())
+    return _clerk_jwks_cache
+
+
+def _verify_clerk_token(token):
+    """Verify a Clerk JWT and return decoded claims, or None on failure."""
+    if not CLERK_ENABLED:
+        return None
+    try:
+        header = jwt.get_unverified_header(token)
+        kid = header.get("kid")
+        jwks = _get_clerk_jwks()
+        key = None
+        for k in jwks.get("keys", []):
+            if k["kid"] == kid:
+                key = jwt.algorithms.RSAAlgorithm.from_jwk(k)
+                break
+        if key is None:
+            # Refresh cache in case keys rotated
+            global _clerk_jwks_cache
+            _clerk_jwks_cache = None
+            jwks = _get_clerk_jwks()
+            for k in jwks.get("keys", []):
+                if k["kid"] == kid:
+                    key = jwt.algorithms.RSAAlgorithm.from_jwk(k)
+                    break
+        if key is None:
+            return None
+        claims = jwt.decode(token, key, algorithms=["RS256"], issuer=CLERK_ISSUER,
+                            options={"verify_aud": False})
+        return claims
+    except Exception:
+        return None
 
 
 def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        # Check session or API key
-        if "account_id" in session:
-            return f(*args, **kwargs)
+        # 1. API key auth (always available)
         api_key = request.headers.get("X-API-Key")
         if api_key:
             db = get_db()
             acct = db.execute("SELECT id FROM accounts WHERE api_key=? AND status='active'", (api_key,)).fetchone()
             if acct:
-                session["account_id"] = acct["id"]
+                g.account_id = acct["id"]
                 return f(*args, **kwargs)
+
+        # 2. Clerk JWT auth (when enabled)
+        if CLERK_ENABLED:
+            token = None
+            auth_header = request.headers.get("Authorization", "")
+            if auth_header.startswith("Bearer "):
+                token = auth_header[7:]
+            else:
+                token = request.cookies.get("__session")
+            if token:
+                claims = _verify_clerk_token(token)
+                if claims:
+                    clerk_user_id = claims["sub"]
+                    db = get_db()
+                    acct = db.execute("SELECT id FROM accounts WHERE clerk_user_id=? AND status='active'",
+                                      (clerk_user_id,)).fetchone()
+                    if acct:
+                        g.account_id = acct["id"]
+                        return f(*args, **kwargs)
+
+        # 3. Legacy session auth (dev mode only)
+        if not CLERK_ENABLED and "account_id" in session:
+            g.account_id = session["account_id"]
+            return f(*args, **kwargs)
+
         return jsonify({"error": "Authentication required"}), 401
     return decorated
 
 
 def get_account_id():
-    return session.get("account_id")
+    return getattr(g, 'account_id', None) or session.get("account_id")
 
 
 # ============================================================
@@ -414,6 +593,9 @@ def index():
 
 @app.route("/api/auth/signup", methods=["POST"])
 def signup():
+    if CLERK_ENABLED:
+        return jsonify({"error": "Please use Clerk authentication", "clerk_enabled": True}), 410
+
     data = request.json
     if not data or not data.get("email") or not data.get("password") or not data.get("name"):
         return jsonify({"error": "Email, password, and name are required"}), 400
@@ -451,6 +633,9 @@ def signup():
 
 @app.route("/api/auth/login", methods=["POST"])
 def login():
+    if CLERK_ENABLED:
+        return jsonify({"error": "Please use Clerk authentication", "clerk_enabled": True}), 410
+
     data = request.json
     if not data or not data.get("email") or not data.get("password"):
         return jsonify({"error": "Email and password required"}), 400
@@ -479,6 +664,8 @@ def login():
 
 @app.route("/api/auth/logout", methods=["POST"])
 def logout():
+    if CLERK_ENABLED:
+        return jsonify({"ok": True})
     session.clear()
     return jsonify({"ok": True})
 
@@ -532,6 +719,88 @@ def regenerate_api_key():
                (get_account_id(), "api_key_regenerated", "API key was regenerated", _now().isoformat()))
     db.commit()
     return jsonify({"api_key": new_key})
+
+
+@app.route("/api/auth/clerk-config")
+def clerk_config():
+    """Public endpoint: tells the frontend whether Clerk is enabled."""
+    return jsonify({
+        "enabled": CLERK_ENABLED,
+        "publishable_key": CLERK_PUBLISHABLE_KEY if CLERK_ENABLED else None
+    })
+
+
+@app.route("/api/auth/clerk-sync", methods=["POST"])
+def clerk_sync():
+    """After Clerk sign-in/sign-up, upsert the local account."""
+    if not CLERK_ENABLED:
+        return jsonify({"error": "Clerk not configured"}), 501
+
+    # Verify the Clerk token
+    token = None
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header[7:]
+    else:
+        token = request.cookies.get("__session")
+    if not token:
+        return jsonify({"error": "No auth token"}), 401
+
+    claims = _verify_clerk_token(token)
+    if not claims:
+        return jsonify({"error": "Invalid token"}), 401
+
+    clerk_user_id = claims["sub"]
+    # Clerk session tokens may have email in different locations
+    email = None
+    if "email" in claims:
+        email = claims["email"]
+    elif "email_addresses" in claims and claims["email_addresses"]:
+        email = claims["email_addresses"][0].get("email_address")
+
+    first = claims.get("first_name", "")
+    last = claims.get("last_name", "")
+    name = claims.get("name") or f"{first} {last}".strip() or "User"
+
+    db = get_db()
+
+    # Try to find by clerk_user_id first
+    acct = db.execute("SELECT * FROM accounts WHERE clerk_user_id=?", (clerk_user_id,)).fetchone()
+
+    if not acct and email:
+        # Try by email (links existing/seeded accounts to Clerk on first login)
+        acct = db.execute("SELECT * FROM accounts WHERE email=?", (email,)).fetchone()
+        if acct:
+            db.execute("UPDATE accounts SET clerk_user_id=? WHERE id=?", (clerk_user_id, acct["id"]))
+            db.commit()
+            acct = db.execute("SELECT * FROM accounts WHERE id=?", (acct["id"],)).fetchone()
+
+    if not acct:
+        # Create new account
+        api_key = _gen_api_key()
+        now = _now().isoformat()
+        db.execute("""INSERT INTO accounts
+                      (email, password_hash, salt, name, plan, account_type, api_key,
+                       status, onboarding_complete, created_at, last_login, clerk_user_id)
+                      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+                   (email or f"{clerk_user_id}@clerk.user", "clerk_managed", "clerk_managed",
+                    name, "free", "personal", api_key, "active", 0, now, now, clerk_user_id))
+        db.commit()
+        acct = db.execute("SELECT * FROM accounts WHERE clerk_user_id=?", (clerk_user_id,)).fetchone()
+        db.execute("INSERT INTO activity_log (account_id, action, details, created_at) VALUES (?,?,?,?)",
+                   (acct["id"], "account_created", "New account via Clerk", _now().isoformat()))
+        db.commit()
+
+    # Update last_login
+    db.execute("UPDATE accounts SET last_login=? WHERE id=?", (_now().isoformat(), acct["id"]))
+    db.commit()
+
+    return jsonify({
+        "id": acct["id"], "email": acct["email"], "name": acct["name"],
+        "plan": acct["plan"], "api_key": acct["api_key"],
+        "account_type": acct["account_type"],
+        "onboarding_complete": acct["onboarding_complete"]
+    })
 
 
 # ============================================================
@@ -786,7 +1055,7 @@ def create_shipment():
     now = _now().isoformat()
 
     # Generate tracking number
-    tracking = "SF" + secrets.token_hex(6).upper()
+    tracking = "PB" + secrets.token_hex(6).upper()
 
     # Determine region from state
     state_to_region = {}
@@ -953,6 +1222,680 @@ def mark_all_read():
     db = get_db()
     db.execute("UPDATE notifications SET read=1 WHERE account_id=? AND archived=0", (get_account_id(),))
     db.commit()
+    return jsonify({"ok": True})
+
+
+# ============================================================
+#  CONNECTED EMAILS
+# ============================================================
+
+@app.route("/api/emails")
+@login_required
+def list_emails():
+    db = get_db()
+    rows = db.execute("SELECT * FROM connected_emails WHERE account_id=? ORDER BY is_primary DESC, connected_at",
+                      (get_account_id(),)).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route("/api/emails", methods=["POST"])
+@login_required
+def add_email():
+    data = request.json
+    if not data or not data.get("email_address"):
+        return jsonify({"error": "Email address required"}), 400
+    db = get_db()
+    aid = get_account_id()
+    label = data.get("label", "general")
+    provider = data.get("provider", "gmail")
+    # Check if already connected
+    existing = db.execute("SELECT id FROM connected_emails WHERE account_id=? AND email_address=?",
+                          (aid, data["email_address"])).fetchone()
+    if existing:
+        return jsonify({"error": "Email already connected"}), 400
+    # Check if first email (make primary)
+    count = db.execute("SELECT COUNT(*) FROM connected_emails WHERE account_id=?", (aid,)).fetchone()[0]
+    is_primary = 1 if count == 0 else 0
+    db.execute("INSERT INTO connected_emails (account_id, email_address, label, provider, is_primary, connected_at) VALUES (?,?,?,?,?,?)",
+               (aid, data["email_address"], label, provider, is_primary, _now().isoformat()))
+    db.commit()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/emails/<int:eid>", methods=["DELETE"])
+@login_required
+def remove_email(eid):
+    db = get_db()
+    db.execute("DELETE FROM connected_emails WHERE id=? AND account_id=?", (eid, get_account_id()))
+    db.commit()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/emails/<int:eid>", methods=["PUT"])
+@login_required
+def update_email(eid):
+    data = request.json or {}
+    db = get_db()
+    aid = get_account_id()
+    if "label" in data:
+        db.execute("UPDATE connected_emails SET label=? WHERE id=? AND account_id=?", (data["label"], eid, aid))
+    if data.get("is_primary"):
+        db.execute("UPDATE connected_emails SET is_primary=0 WHERE account_id=?", (aid,))
+        db.execute("UPDATE connected_emails SET is_primary=1 WHERE id=? AND account_id=?", (eid, aid))
+    db.commit()
+    return jsonify({"ok": True})
+
+
+# ============================================================
+#  INBOX (Email Messages)
+# ============================================================
+
+@app.route("/api/inbox")
+@login_required
+def list_inbox():
+    db = get_db()
+    aid = get_account_id()
+    trashed = request.args.get("trashed", "0")
+    category = request.args.get("category")
+    email_id = request.args.get("email_id")
+    starred = request.args.get("starred")
+    claim_related = request.args.get("claim_related")
+
+    query = """SELECT m.*, ce.email_address as to_email, ce.label as email_label
+               FROM inbox_messages m
+               JOIN connected_emails ce ON m.connected_email_id = ce.id
+               WHERE m.account_id=? AND m.is_trashed=?"""
+    params = [aid, int(trashed)]
+
+    if category:
+        query += " AND m.category=?"
+        params.append(category)
+    if email_id:
+        query += " AND m.connected_email_id=?"
+        params.append(int(email_id))
+    if starred:
+        query += " AND m.is_starred=1"
+    if claim_related:
+        query += " AND m.claim_id IS NOT NULL"
+
+    query += " ORDER BY m.received_at DESC LIMIT 200"
+    rows = db.execute(query, params).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route("/api/inbox/<int:mid>")
+@login_required
+def get_inbox_message(mid):
+    db = get_db()
+    row = db.execute("""SELECT m.*, ce.email_address as to_email, ce.label as email_label
+                        FROM inbox_messages m
+                        JOIN connected_emails ce ON m.connected_email_id = ce.id
+                        WHERE m.id=? AND m.account_id=?""",
+                     (mid, get_account_id())).fetchone()
+    if not row:
+        return jsonify({"error": "Not found"}), 404
+    if not row["is_read"]:
+        db.execute("UPDATE inbox_messages SET is_read=1 WHERE id=?", (mid,))
+        db.commit()
+    return jsonify(dict(row))
+
+
+@app.route("/api/inbox/unread-count")
+@login_required
+def inbox_unread_count():
+    db = get_db()
+    c = db.execute("SELECT COUNT(*) FROM inbox_messages WHERE account_id=? AND is_read=0 AND is_trashed=0",
+                   (get_account_id(),)).fetchone()[0]
+    return jsonify({"count": c})
+
+
+@app.route("/api/inbox/<int:mid>/read", methods=["PUT"])
+@login_required
+def inbox_mark_read(mid):
+    db = get_db()
+    db.execute("UPDATE inbox_messages SET is_read=1 WHERE id=? AND account_id=?", (mid, get_account_id()))
+    db.commit()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/inbox/<int:mid>/star", methods=["PUT"])
+@login_required
+def inbox_toggle_star(mid):
+    db = get_db()
+    row = db.execute("SELECT is_starred FROM inbox_messages WHERE id=? AND account_id=?",
+                     (mid, get_account_id())).fetchone()
+    if not row:
+        return jsonify({"error": "Not found"}), 404
+    new_val = 0 if row["is_starred"] else 1
+    db.execute("UPDATE inbox_messages SET is_starred=? WHERE id=?", (new_val, mid))
+    db.commit()
+    return jsonify({"starred": new_val})
+
+
+@app.route("/api/inbox/<int:mid>/trash", methods=["PUT"])
+@login_required
+def inbox_trash(mid):
+    db = get_db()
+    db.execute("UPDATE inbox_messages SET is_trashed=1 WHERE id=? AND account_id=?", (mid, get_account_id()))
+    db.commit()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/inbox/<int:mid>/restore", methods=["PUT"])
+@login_required
+def inbox_restore(mid):
+    db = get_db()
+    db.execute("UPDATE inbox_messages SET is_trashed=0 WHERE id=? AND account_id=?", (mid, get_account_id()))
+    db.commit()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/inbox/<int:mid>", methods=["DELETE"])
+@login_required
+def inbox_delete(mid):
+    db = get_db()
+    db.execute("DELETE FROM inbox_messages WHERE id=? AND account_id=?", (mid, get_account_id()))
+    db.commit()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/inbox/read-all", methods=["PUT"])
+@login_required
+def inbox_mark_all_read():
+    db = get_db()
+    db.execute("UPDATE inbox_messages SET is_read=1 WHERE account_id=? AND is_trashed=0", (get_account_id(),))
+    db.commit()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/inbox/empty-trash", methods=["DELETE"])
+@login_required
+def inbox_empty_trash():
+    db = get_db()
+    db.execute("DELETE FROM inbox_messages WHERE account_id=? AND is_trashed=1", (get_account_id(),))
+    db.commit()
+    return jsonify({"ok": True})
+
+
+# ============================================================
+#  CLAIMS (extended)
+# ============================================================
+
+@app.route("/api/claims")
+@login_required
+def list_claims():
+    db = get_db()
+    rows = db.execute("""SELECT c.*, s.tracking_number, ca.name as carrier_name
+                         FROM claims c
+                         JOIN shipments s ON c.shipment_id = s.id
+                         JOIN carriers ca ON s.carrier_id = ca.id
+                         ORDER BY c.created_at DESC LIMIT 100""").fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route("/api/claims/<int:cid>/resolve", methods=["PUT"])
+@login_required
+def resolve_claim(cid):
+    db = get_db()
+    db.execute("UPDATE claims SET status='resolved', resolved_at=? WHERE id=?", (_now().isoformat(), cid))
+    db.commit()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/claims/<int:cid>/emails")
+@login_required
+def claim_emails(cid):
+    db = get_db()
+    aid = get_account_id()
+    rows = db.execute("""SELECT m.*, ce.email_address as to_email
+                         FROM inbox_messages m
+                         JOIN connected_emails ce ON m.connected_email_id = ce.id
+                         WHERE m.claim_id=? AND m.account_id=?
+                         ORDER BY m.received_at DESC""", (cid, aid)).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+# ============================================================
+#  PRODUCTS
+# ============================================================
+
+@app.route("/api/products")
+@login_required
+def list_products():
+    db = get_db()
+    rows = db.execute("SELECT * FROM products WHERE account_id=? ORDER BY name", (get_account_id(),)).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route("/api/products", methods=["POST"])
+@login_required
+def create_product():
+    data = request.json
+    if not data or not data.get("name"):
+        return jsonify({"error": "Product name required"}), 400
+    db = get_db()
+    aid = get_account_id()
+    db.execute("""INSERT INTO products (account_id, name, sku, weight_lbs, length_in, width_in, height_in, declared_value, category, is_fragile, created_at)
+                  VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+               (aid, data["name"], data.get("sku", ""), data.get("weight_lbs", 1), data.get("length_in", 0),
+                data.get("width_in", 0), data.get("height_in", 0), data.get("declared_value", 0),
+                data.get("category", "general"), 1 if data.get("is_fragile") else 0, _now().isoformat()))
+    db.commit()
+    return jsonify({"ok": True, "id": db.execute("SELECT last_insert_rowid()").fetchone()[0]})
+
+
+@app.route("/api/products/<int:pid>", methods=["PUT"])
+@login_required
+def update_product(pid):
+    data = request.json or {}
+    db = get_db()
+    aid = get_account_id()
+    fields = ["name", "sku", "weight_lbs", "length_in", "width_in", "height_in", "declared_value", "category", "is_fragile"]
+    updates = []
+    params = []
+    for f in fields:
+        if f in data:
+            updates.append(f"{f}=?")
+            params.append(data[f])
+    if updates:
+        params.extend([pid, aid])
+        db.execute(f"UPDATE products SET {','.join(updates)} WHERE id=? AND account_id=?", params)
+        db.commit()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/products/<int:pid>", methods=["DELETE"])
+@login_required
+def delete_product(pid):
+    db = get_db()
+    db.execute("DELETE FROM products WHERE id=? AND account_id=?", (pid, get_account_id()))
+    db.commit()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/products/search")
+@login_required
+def search_products():
+    q = request.args.get("q", "")
+    db = get_db()
+    rows = db.execute("SELECT * FROM products WHERE account_id=? AND (name LIKE ? OR sku LIKE ?) ORDER BY name LIMIT 20",
+                      (get_account_id(), f"%{q}%", f"%{q}%")).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+# ============================================================
+#  SHIPMENT ITEMS
+# ============================================================
+
+@app.route("/api/shipments/<int:sid>/items")
+@login_required
+def shipment_items(sid):
+    db = get_db()
+    rows = db.execute("SELECT * FROM shipment_items WHERE shipment_id=?", (sid,)).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+# ============================================================
+#  CUSTOMER ADDRESSES
+# ============================================================
+
+@app.route("/api/customers/search")
+@login_required
+def search_customers():
+    q = request.args.get("q", "")
+    db = get_db()
+    rows = db.execute("""SELECT c.*, ca.address, ca.city as addr_city, ca.state as addr_state, ca.zip as addr_zip, ca.label as addr_label, ca.id as addr_id
+                         FROM customers c
+                         LEFT JOIN customer_addresses ca ON ca.customer_id = c.id
+                         WHERE c.name LIKE ? OR c.company LIKE ? OR c.email LIKE ?
+                         ORDER BY c.name LIMIT 30""",
+                      (f"%{q}%", f"%{q}%", f"%{q}%")).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route("/api/customers/<int:cid>/addresses")
+@login_required
+def customer_addresses(cid):
+    db = get_db()
+    rows = db.execute("SELECT * FROM customer_addresses WHERE customer_id=? ORDER BY is_default DESC, created_at", (cid,)).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route("/api/customers/<int:cid>/addresses", methods=["POST"])
+@login_required
+def add_customer_address(cid):
+    data = request.json
+    if not data:
+        return jsonify({"error": "Address data required"}), 400
+    db = get_db()
+    db.execute("""INSERT INTO customer_addresses (customer_id, label, address, city, state, zip, is_default, created_at)
+                  VALUES (?,?,?,?,?,?,?,?)""",
+               (cid, data.get("label", "shipping"), data.get("address", ""), data.get("city", ""),
+                data.get("state", ""), data.get("zip", ""), 0, _now().isoformat()))
+    db.commit()
+    return jsonify({"ok": True})
+
+
+# ============================================================
+#  SAVED ADDRESSES SEARCH
+# ============================================================
+
+@app.route("/api/addresses/search")
+@login_required
+def search_addresses():
+    q = request.args.get("q", "")
+    db = get_db()
+    rows = db.execute("SELECT * FROM saved_addresses WHERE account_id=? AND (name LIKE ? OR label LIKE ? OR city LIKE ?) ORDER BY name LIMIT 20",
+                      (get_account_id(), f"%{q}%", f"%{q}%", f"%{q}%")).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+# ============================================================
+#  EMAIL REVIEW QUEUE
+# ============================================================
+
+import re
+
+def classify_email(subject, body, from_addr):
+    """Classify email and extract structured data using pattern matching."""
+    text = (subject + " " + body).lower()
+    extracted = {}
+    issues = []
+
+    # Extract tracking numbers (patterns: PB, SF, FX, 1Z for UPS, etc.)
+    tracking_patterns = [
+        r'\b(PB[A-F0-9]{12})\b',
+        r'\b(1Z[A-Z0-9]{16})\b',
+        r'\b(\d{12,22})\b',
+        r'\b(SF[A-Z0-9]{10,})\b',
+        r'\b([A-Z]{2}\d{9}[A-Z]{2})\b',
+    ]
+    for pat in tracking_patterns:
+        m = re.search(pat, subject + " " + body, re.IGNORECASE)
+        if m:
+            extracted["tracking_number"] = m.group(1)
+            break
+
+    # Extract order numbers
+    order_match = re.search(r'(?:order|ord)[#:\s]*([A-Z0-9\-]{4,})', subject + " " + body, re.IGNORECASE)
+    if order_match:
+        extracted["order_number"] = order_match.group(1)
+
+    # Extract invoice numbers
+    inv_match = re.search(r'(?:invoice|inv)[#:\s]*([A-Z0-9\-]{4,})', subject + " " + body, re.IGNORECASE)
+    if inv_match:
+        extracted["invoice_number"] = inv_match.group(1)
+
+    # Extract dollar amounts
+    amount_match = re.search(r'\$([0-9,]+\.?\d{0,2})', subject + " " + body)
+    if amount_match:
+        extracted["amount"] = amount_match.group(1).replace(",", "")
+
+    # Extract claim IDs
+    claim_match = re.search(r'(?:claim|clm)[#:\s]*([A-Z0-9\-]{3,})', subject + " " + body, re.IGNORECASE)
+    if claim_match:
+        extracted["claim_id"] = claim_match.group(1)
+
+    # Try to extract person name from the from field or signature
+    if from_addr and "@" in from_addr:
+        name_parts = from_addr.split("@")[0].replace(".", " ").replace("_", " ").replace("-", " ")
+        # Validate it looks like a name (not noreply, system, etc.)
+        skip_names = {"noreply", "no-reply", "system", "support", "info", "admin", "billing", "alerts", "notifications", "service", "receipts", "digest"}
+        if name_parts.lower().strip() not in skip_names and len(name_parts) > 2:
+            extracted["sender_name_guess"] = name_parts.title()
+
+    # Classify category
+    category = "general"
+    claim_keywords = ["damage", "damaged", "broken", "lost", "missing", "claim", "refund", "compensation"]
+    issue_keywords = ["delay", "delayed", "late", "wrong address", "reroute", "complaint", "sla violation", "not delivered"]
+    billing_keywords = ["invoice", "payment", "receipt", "billing", "charge", "statement", "refund", "subscription"]
+    alert_keywords = ["alert", "warning", "urgent", "action required", "attention", "security", "suspicious"]
+    shipping_keywords = ["shipped", "delivered", "tracking", "transit", "pickup", "out for delivery", "label created"]
+
+    if any(k in text for k in claim_keywords):
+        category = "claim"
+    elif any(k in text for k in issue_keywords):
+        category = "issue"
+    elif any(k in text for k in billing_keywords):
+        category = "billing"
+    elif any(k in text for k in alert_keywords):
+        category = "alert"
+    elif any(k in text for k in shipping_keywords):
+        category = "shipping"
+
+    # Determine issues
+    if category in ("claim", "issue") and "tracking_number" not in extracted:
+        issues.append({"field": "tracking_number", "message": "Could not find a tracking number in this email"})
+    if category == "billing" and "amount" not in extracted and "invoice_number" not in extracted:
+        issues.append({"field": "amount", "message": "No invoice number or amount found"})
+    if "sender_name_guess" in extracted:
+        issues.append({"field": "sender_name", "message": f"Name guessed from email: '{extracted['sender_name_guess']}' — verify this is correct"})
+
+    extracted["category"] = category
+    return extracted, issues
+
+
+@app.route("/api/review-queue")
+@login_required
+def list_review_queue():
+    db = get_db()
+    aid = get_account_id()
+    status_filter = request.args.get("status", "pending")
+    rows = db.execute("""SELECT rq.*, im.subject, im.from_address, im.from_name, im.received_at as email_date,
+                                ce.email_address as to_email
+                         FROM email_review_queue rq
+                         JOIN inbox_messages im ON rq.inbox_message_id = im.id
+                         JOIN connected_emails ce ON im.connected_email_id = ce.id
+                         WHERE rq.account_id=? AND rq.status=?
+                         ORDER BY rq.created_at DESC LIMIT 100""",
+                      (aid, status_filter)).fetchall()
+    result = []
+    for r in rows:
+        d = dict(r)
+        d["extracted_data"] = json.loads(d["extracted_data"]) if d["extracted_data"] else {}
+        d["issues"] = json.loads(d["issues"]) if d["issues"] else []
+        result.append(d)
+    return jsonify(result)
+
+
+@app.route("/api/review-queue/<int:rid>/resolve", methods=["PUT"])
+@login_required
+def resolve_review(rid):
+    data = request.json or {}
+    db = get_db()
+    aid = get_account_id()
+    row = db.execute("SELECT * FROM email_review_queue WHERE id=? AND account_id=?", (rid, aid)).fetchone()
+    if not row:
+        return jsonify({"error": "Not found"}), 404
+
+    # Update extracted data if corrections provided
+    if data.get("corrections"):
+        extracted = json.loads(row["extracted_data"]) if row["extracted_data"] else {}
+        extracted.update(data["corrections"])
+        db.execute("UPDATE email_review_queue SET extracted_data=? WHERE id=?", (json.dumps(extracted), rid))
+
+    # Check if auto_create is requested and account has it enabled
+    auto_create = data.get("auto_create", False)
+    linked_type = None
+    linked_id = None
+
+    if auto_create:
+        extracted = json.loads(row["extracted_data"]) if row["extracted_data"] else {}
+        if data.get("corrections"):
+            extracted.update(data["corrections"])
+        cat = extracted.get("category", "general")
+        # Could auto-create shipment, claim, etc. based on category
+        # For now, just mark the link
+        linked_type = cat
+        linked_id = None
+
+    db.execute("""UPDATE email_review_queue SET status='resolved', resolved_at=?, linked_entity_type=?, linked_entity_id=?, auto_created=?
+                  WHERE id=?""",
+               (_now().isoformat(), linked_type, linked_id, 1 if auto_create else 0, rid))
+    db.commit()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/review-queue/process", methods=["POST"])
+@login_required
+def process_emails_for_review():
+    """Process unprocessed inbox messages through the classifier and add to review queue."""
+    db = get_db()
+    aid = get_account_id()
+
+    # Find inbox messages not yet in review queue
+    messages = db.execute("""SELECT im.* FROM inbox_messages im
+                             LEFT JOIN email_review_queue rq ON rq.inbox_message_id = im.id
+                             WHERE im.account_id=? AND rq.id IS NULL
+                             ORDER BY im.received_at DESC""", (aid,)).fetchall()
+
+    processed = 0
+    for msg in messages:
+        extracted, issues = classify_email(msg["subject"], msg["body"], msg["from_address"])
+        status = "pending" if issues else "saved"
+        db.execute("""INSERT INTO email_review_queue (account_id, inbox_message_id, extracted_data, issues, status, created_at)
+                      VALUES (?,?,?,?,?,?)""",
+                   (aid, msg["id"], json.dumps(extracted), json.dumps(issues), status, _now().isoformat()))
+        processed += 1
+
+    db.commit()
+    return jsonify({"processed": processed})
+
+
+# ============================================================
+#  SHIPPING LABELS (simulated)
+# ============================================================
+
+@app.route("/api/shipments/<int:sid>/label")
+@login_required
+def get_label(sid):
+    """Return simulated label data for a shipment."""
+    db = get_db()
+    ship = db.execute("""SELECT s.*, c.name as customer_name, c.email as customer_email,
+                                ca.name as carrier_name
+                         FROM shipments s
+                         JOIN customers c ON s.customer_id = c.id
+                         JOIN carriers ca ON s.carrier_id = ca.id
+                         WHERE s.id=?""", (sid,)).fetchone()
+    if not ship:
+        return jsonify({"error": "Shipment not found"}), 404
+
+    label = {
+        "shipment_id": sid,
+        "tracking_number": ship["tracking_number"],
+        "carrier": ship["carrier_name"],
+        "service_level": ship["service_level"],
+        "from": {"name": "PacketBase Warehouse", "address": "123 Logistics Ave", "city": "Newark", "state": "NJ", "zip": "07102"},
+        "to": {"name": ship["customer_name"], "city": ship["destination_city"], "state": ship["destination_state"]},
+        "weight_lbs": ship["weight_lbs"],
+        "cost": ship["shipping_cost"],
+        "label_url": f"/api/shipments/{sid}/label/download",
+        "created_at": ship["created_at"]
+    }
+    return jsonify(label)
+
+
+# ============================================================
+#  ENHANCED CREATE SHIPMENT (multi-item)
+# ============================================================
+
+@app.route("/api/shipments/create-multi", methods=["POST"])
+@login_required
+def create_shipment_multi():
+    """Create a shipment with multiple product items."""
+    data = request.json
+    if not data:
+        return jsonify({"error": "Shipment data required"}), 400
+
+    required = ["destination_city", "destination_state", "carrier_id", "service_level"]
+    for f in required:
+        if f not in data:
+            return jsonify({"error": f"Missing field: {f}"}), 400
+
+    items = data.get("items", [])
+    if not items:
+        return jsonify({"error": "At least one item required"}), 400
+
+    db = get_db()
+    aid = get_account_id()
+    now = _now().isoformat()
+
+    # Auto-calculate totals
+    total_weight = sum(item.get("weight_lbs", 0) * item.get("quantity", 1) for item in items)
+    total_value = sum(item.get("declared_value", 0) * item.get("quantity", 1) for item in items)
+
+    tracking = "PB" + secrets.token_hex(6).upper()
+
+    state_to_region = {}
+    for region_data in [
+        ("Northeast", ["NY","NJ","PA","MA","CT","NH","VT","ME","RI"]),
+        ("Southeast", ["FL","GA","NC","SC","VA","TN","AL"]),
+        ("Midwest", ["IL","OH","MI","IN","WI","MN","MO","IA"]),
+        ("Southwest", ["TX","AZ","NM","OK","NV"]),
+        ("West", ["CA","WA","OR","CO","UT"]),
+    ]:
+        for st in region_data[1]:
+            state_to_region[st] = region_data[0]
+
+    dest_region = state_to_region.get(data["destination_state"], "Unknown")
+    wh = db.execute("SELECT id FROM warehouses ORDER BY RANDOM() LIMIT 1").fetchone()
+
+    # Calculate cost from rates
+    rate = db.execute("""SELECT * FROM shipping_rates WHERE carrier_id=? AND service_level=? AND min_weight<=? AND max_weight>=? AND active=1 LIMIT 1""",
+                      (data["carrier_id"], data["service_level"], total_weight, total_weight)).fetchone()
+    if rate:
+        cost = round(rate["base_rate"] + total_weight * rate["per_lb_rate"], 2)
+        insurance = round(total_value * (rate["insurance_rate_pct"] / 100), 2) if rate["insurance_rate_pct"] and total_value else 0
+        quoted_days = rate["estimated_days_max"] or 5
+    else:
+        cost = round(8.99 + total_weight * 0.5, 2)
+        insurance = 0
+        quoted_days = 5
+
+    # Find or create customer
+    customer_id = data.get("customer_id")
+    if not customer_id:
+        customer_id = db.execute("SELECT id FROM customers ORDER BY RANDOM() LIMIT 1").fetchone()["id"]
+
+    db.execute("""INSERT INTO shipments (tracking_number, account_id, customer_id, carrier_id, origin_warehouse_id,
+                  status, service_level, package_type, weight_lbs, shipping_cost, insurance_cost,
+                  destination_city, destination_state, destination_region, quoted_days, created_at)
+                  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+               (tracking, aid, customer_id, data["carrier_id"], wh["id"] if wh else 1,
+                "label_created", data["service_level"], data.get("package_type", "box"),
+                total_weight, cost, insurance,
+                data["destination_city"], data["destination_state"], dest_region, quoted_days, now))
+
+    shipment_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+    # Insert shipment items
+    for item in items:
+        db.execute("""INSERT INTO shipment_items (shipment_id, product_id, product_name, quantity, weight_lbs, declared_value)
+                      VALUES (?,?,?,?,?,?)""",
+                   (shipment_id, item.get("product_id"), item.get("name", "Item"),
+                    item.get("quantity", 1), item.get("weight_lbs", 0), item.get("declared_value", 0)))
+
+    # Create label_created event
+    db.execute("""INSERT INTO shipment_events (shipment_id, event_type, location, notes, created_at)
+                  VALUES (?,?,?,?,?)""", (shipment_id, "label_created", "PacketBase System", "Shipping label created", now))
+
+    db.commit()
+    return jsonify({
+        "ok": True, "shipment_id": shipment_id, "tracking_number": tracking,
+        "total_weight": total_weight, "total_value": total_value, "auto_calculated": True,
+        "shipping_cost": cost, "insurance_cost": insurance
+    })
+
+
+@app.route("/api/onboarding/save-preferences", methods=["POST"])
+@login_required
+def save_preferences():
+    data = request.json or {}
+    db = get_db()
+    aid = get_account_id()
+    if "auto_create_records" in data:
+        db.execute("UPDATE accounts SET auto_create_records=? WHERE id=?", (1 if data["auto_create_records"] else 0, aid))
+        db.commit()
     return jsonify({"ok": True})
 
 
@@ -1567,9 +2510,9 @@ def print_banner():
 ║          {CYAN}Shipping Analytics Platform v2.0{BLUE}                      ║
 ╚══════════════════════════════════════════════════════════════════╝{RESET}
 
-{BOLD}{CYAN}━━━ What is ShipFlow? ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{RESET}
+{BOLD}{CYAN}━━━ What is PacketBase? ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{RESET}
 
-  ShipFlow is a {BOLD}full-featured shipping analytics and management{RESET}
+  PacketBase is a {BOLD}full-featured shipping analytics and management{RESET}
   platform for businesses that ship products. Think of it as your
   command center for everything shipping.
 
@@ -1632,7 +2575,7 @@ def print_banner():
 {BOLD}{RED}━━━ Quick Start ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{RESET}
 
   {DIM}Demo account:{RESET}
-    Email:    {BOLD}admin@shipflow.com{RESET}
+    Email:    {BOLD}admin@packetbase.com{RESET}
     Password: {BOLD}admin123{RESET}
 
   {DIM}API key:{RESET}  Use the API key from your account settings.

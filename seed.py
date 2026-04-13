@@ -2,6 +2,8 @@
 import sqlite3
 import random
 import os
+import re
+import json
 import secrets
 import hashlib
 import string
@@ -91,11 +93,17 @@ def hash_pw(password, salt):
 
 
 def seed():
+    # Ensure tables exist before seeding
+    from app import init_db
+    init_db()
+
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
 
-    for t in ["meeting_requests","enterprise_questionnaires","team_members","connected_platforms",
+    for t in ["email_review_queue","shipment_items","products","customer_addresses",
+              "meeting_requests","enterprise_questionnaires","team_members","connected_platforms",
               "account_use_cases","pricing_tiers","activity_log","notifications","invoice_lines",
+              "inbox_messages","connected_emails",
               "invoices","shipping_rates","saved_addresses","payment_methods","shipment_events",
               "claims","shipments","customers","warehouses","carriers","accounts"]:
         c.execute(f"DELETE FROM {t}")
@@ -108,11 +116,11 @@ def seed():
 
     # Admin/demo account — all seed data is tied to this account
     salt = secrets.token_hex(16)
-    api_key = "sf_" + secrets.token_hex(24)
-    c.execute("""INSERT INTO accounts (email, password_hash, salt, name, company, phone, role, plan, account_type, api_key, status, onboarding_complete, created_at, last_login)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-              ("admin@shipflow.com", hash_pw("admin123", salt), salt, "Julian Grossman", "ShipFlow Inc",
-               "555-0100", "admin", "enterprise", "enterprise", api_key, "active", 1, (now - timedelta(days=120)).isoformat(), now.isoformat()))
+    api_key = "pb_" + secrets.token_hex(24)
+    c.execute("""INSERT INTO accounts (email, password_hash, salt, name, company, phone, role, plan, account_type, api_key, status, onboarding_complete, created_at, last_login, clerk_user_id)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+              ("admin@packetbase.com", hash_pw("admin123", salt), salt, "Julian Grossman", "PacketBase Inc",
+               "555-0100", "admin", "enterprise", "enterprise", api_key, "active", 1, (now - timedelta(days=120)).isoformat(), now.isoformat(), None))
     demo_account_id = c.lastrowid
     accounts.append({"id": demo_account_id, "plan": "enterprise"})
 
@@ -124,12 +132,12 @@ def seed():
         plan = random.choices(["starter","pro","enterprise_starter"], weights=[50,35,15])[0]
         acct_type = "enterprise" if "enterprise" in plan else "personal"
         created = start_date + timedelta(days=random.randint(0, 90))
-        c.execute("""INSERT INTO accounts (email, password_hash, salt, name, company, phone, role, plan, account_type, api_key, status, onboarding_complete, created_at, last_login)
-                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        c.execute("""INSERT INTO accounts (email, password_hash, salt, name, company, phone, role, plan, account_type, api_key, status, onboarding_complete, created_at, last_login, clerk_user_id)
+                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                   (f"{first.lower()}.{last.lower()}{i}@example.com", hash_pw("password123", salt), salt,
                    f"{first} {last}", random.choice([co for co in COMPANIES if co]),
-                   f"555-{random.randint(1000,9999)}", "user", plan, acct_type, "sf_" + secrets.token_hex(24),
-                   "active", 1, created.isoformat(), (now - timedelta(days=random.randint(0,7))).isoformat()))
+                   f"555-{random.randint(1000,9999)}", "user", plan, acct_type, "pb_" + secrets.token_hex(24),
+                   "active", 1, created.isoformat(), (now - timedelta(days=random.randint(0,7))).isoformat(), None))
         accounts.append({"id": c.lastrowid, "plan": plan})
 
     # ===== PAYMENT METHODS =====
@@ -216,7 +224,49 @@ def seed():
                    random.choice(COMPANIES), f"555-{random.randint(1000,9999)}",
                    f"{random.randint(100,9999)} {random.choice(['Main','Oak','Elm','Pine','Cedar'])} St",
                    city, state, random.choice(rdata["zips"]), region, tier, created.isoformat()))
-        customer_data.append({"id": c.lastrowid, "region": region, "tier": tier, "created": created, "account_id": acct["id"]})
+        cust_id = c.lastrowid
+        customer_data.append({"id": cust_id, "region": region, "tier": tier, "created": created, "account_id": acct["id"]})
+        # Add primary address for every customer
+        c.execute("""INSERT INTO customer_addresses (customer_id, label, address, city, state, zip, is_default, created_at)
+                     VALUES (?,?,?,?,?,?,?,?)""",
+                  (cust_id, "primary", f"{random.randint(100,9999)} {random.choice(['Main','Oak','Elm','Pine','Cedar'])} St",
+                   city, state, random.choice(rdata["zips"]), 1, created.isoformat()))
+        # Some customers have a second address
+        if random.random() < 0.3:
+            alt_region = random.choice(list(REGIONS.keys()))
+            alt_rdata = REGIONS[alt_region]
+            c.execute("""INSERT INTO customer_addresses (customer_id, label, address, city, state, zip, is_default, created_at)
+                         VALUES (?,?,?,?,?,?,?,?)""",
+                      (cust_id, random.choice(["warehouse","office","alternate"]),
+                       f"{random.randint(100,9999)} {random.choice(['Broadway','Market','Lake','River','Hill'])} Ave",
+                       random.choice(alt_rdata["cities"]), random.choice(alt_rdata["states"]),
+                       random.choice(alt_rdata["zips"]), 0, created.isoformat()))
+
+    # ===== PRODUCTS (demo account) =====
+    product_categories = ["electronics","clothing","food","furniture","books","toys","health","sports","office","auto"]
+    demo_products = [
+        ("Wireless Bluetooth Headphones", "WBH-001", 0.8, 8, 6, 4, 49.99, "electronics", 1),
+        ("Premium Cotton T-Shirt (M)", "PCT-M01", 0.4, 12, 10, 1, 24.99, "clothing", 0),
+        ("Organic Coffee Beans (2lb)", "OCB-002", 2.1, 8, 4, 10, 18.99, "food", 0),
+        ("Standing Desk Frame", "SDF-100", 45.0, 48, 30, 6, 299.99, "furniture", 0),
+        ("Hardcover Novel Collection", "HNC-050", 3.2, 10, 7, 5, 39.99, "books", 0),
+        ("Kids Building Block Set", "KBB-200", 1.5, 14, 10, 4, 29.99, "toys", 0),
+        ("Vitamin D Supplements (90ct)", "VDS-090", 0.3, 4, 2, 2, 14.99, "health", 0),
+        ("Yoga Mat (6mm)", "YGM-006", 2.8, 26, 6, 6, 34.99, "sports", 0),
+        ("Mechanical Keyboard", "MKB-075", 2.0, 18, 6, 2, 89.99, "electronics", 1),
+        ("Ceramic Coffee Mug Set (4)", "CCM-004", 3.5, 12, 12, 6, 32.99, "electronics", 1),
+        ("Running Shoes (Size 10)", "RSH-010", 1.8, 13, 8, 5, 119.99, "sports", 0),
+        ("Laptop Sleeve (15\")", "LSV-015", 0.5, 16, 11, 1, 22.99, "electronics", 0),
+        ("Stainless Steel Water Bottle", "SWB-032", 0.9, 10, 3, 3, 24.99, "health", 0),
+        ("Desk Organizer Set", "DOS-001", 1.2, 12, 8, 4, 19.99, "office", 0),
+        ("Car Phone Mount", "CPM-001", 0.3, 6, 4, 3, 15.99, "auto", 0),
+    ]
+    product_ids = []
+    for name, sku, weight, l, w, h, value, cat, fragile in demo_products:
+        c.execute("""INSERT INTO products (account_id, name, sku, weight_lbs, length_in, width_in, height_in, declared_value, category, is_fragile, created_at)
+                     VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                  (demo_account_id, name, sku, weight, l, w, h, value, cat, fragile, (now - timedelta(days=random.randint(10,60))).isoformat()))
+        product_ids.append(c.lastrowid)
 
     # ===== SHIPMENTS =====
     shipment_data = []
@@ -398,6 +448,19 @@ def seed():
                        random.choice(rdata["zips"]), f"555-{random.randint(1000,9999)}",
                        0, (now - timedelta(days=random.randint(1,60))).isoformat()))
 
+    # ===== SHIPMENT ITEMS (for demo account shipments) =====
+    demo_shipments = c.execute("SELECT id FROM shipments WHERE account_id=? LIMIT 50", (demo_account_id,)).fetchall()
+    for sh_row in demo_shipments:
+        sh_id = sh_row[0]
+        num_items = random.choices([1,2,3], weights=[60,30,10])[0]
+        for _ in range(num_items):
+            prod_idx = random.randint(0, len(product_ids)-1)
+            prod = demo_products[prod_idx]
+            qty = random.randint(1, 3)
+            c.execute("""INSERT INTO shipment_items (shipment_id, product_id, product_name, quantity, weight_lbs, declared_value)
+                         VALUES (?,?,?,?,?,?)""",
+                      (sh_id, product_ids[prod_idx], prod[0], qty, prod[2], prod[6]))
+
     # ===== DEMO USE CASES & PLATFORMS (for demo account only) =====
     demo_use_cases = ["domestic_shipping", "international_shipping", "ecommerce", "marketplace", "wholesale_b2b"]
     for uc in demo_use_cases:
@@ -455,10 +518,10 @@ def seed():
              action_label, action_link, read, starred, archived, created_at)
             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (aid, "system", "normal",
-             "Welcome to ShipFlow!",
+             "Welcome to PacketBase!",
              "Your account is ready - here's how to get started",
-             "Your ShipFlow account has been created and is ready to use.",
-             """Welcome to ShipFlow! We're excited to have you on board.
+             "Your PacketBase account has been created and is ready to use.",
+             """Welcome to PacketBase! We're excited to have you on board.
 
 Here's a quick guide to get you started:
 
@@ -475,13 +538,13 @@ Here's a quick guide to get you started:
    Your Dashboard shows real-time analytics: shipment volume, revenue, delivery performance, and more.
 
 5. GET YOUR API KEY
-   Need to integrate ShipFlow with your systems? Grab your API key from My Account and check our API docs.
+   Need to integrate PacketBase with your systems? Grab your API key from My Account and check our API docs.
 
 If you have any questions, our support team is available 24/7.
 
 Happy shipping!
-The ShipFlow Team""",
-             "ShipFlow Onboarding", "account", aid,
+The PacketBase Team""",
+             "PacketBase Onboarding", "account", aid,
              "Go to Dashboard", "/dashboard",
              1, 0, 0, welcome_time.isoformat()))
 
@@ -521,10 +584,10 @@ Shipping Cost:    ${cost:.2f}
 
 {"Your package arrived on schedule. Great choice of carrier!" if on_time else f"This delivery was {actual_d - quoted_d} day(s) late. If this is unacceptable, you can file a delay claim from the Claims page."}
 
-Thank you for shipping with ShipFlow.
+Thank you for shipping with PacketBase.
 ---
-This is an automated delivery confirmation from ShipFlow tracking systems.""",
-                     f"{carrier_name} via ShipFlow", "shipment", s_id,
+This is an automated delivery confirmation from PacketBase tracking systems.""",
+                     f"{carrier_name} via PacketBase", "shipment", s_id,
                      "Track Shipment", f"/tracking",
                      random.choice([0, 0, 1]), 0, 0, created.isoformat()))
 
@@ -557,8 +620,8 @@ Your package has been picked up by {carrier_name} and is currently in transit to
 
 You can track this shipment in real-time using the tracking number above.
 ---
-ShipFlow Tracking System""",
-                     f"{carrier_name} via ShipFlow", "shipment", s_id,
+PacketBase Tracking System""",
+                     f"{carrier_name} via PacketBase", "shipment", s_id,
                      "Track Shipment", f"/tracking",
                      random.choice([0, 1]), 0, 0, created.isoformat()))
 
@@ -602,10 +665,10 @@ WHAT TO DO NEXT
 
 If no action is taken within 5 business days, the package will be returned to the origin warehouse.
 
-Need help? Contact ShipFlow support or file a claim from the Claims page.
+Need help? Contact PacketBase support or file a claim from the Claims page.
 ---
-ShipFlow Exception Alert System""",
-                     "ShipFlow Alerts", "shipment", s_id,
+PacketBase Exception Alert System""",
+                     "PacketBase Alerts", "shipment", s_id,
                      "View Exception", f"/tracking",
                      random.choice([0, 0]), 1, 0, created.isoformat()))
 
@@ -646,8 +709,8 @@ NEXT STEPS
 
 Return shipping charges may apply depending on your plan and carrier agreement.
 ---
-ShipFlow Returns System""",
-                     "ShipFlow Returns", "shipment", s_id,
+PacketBase Returns System""",
+                     "PacketBase Returns", "shipment", s_id,
                      "File Claim", "/claims",
                      random.choice([0, 0, 1]), 0, 0, created.isoformat()))
 
@@ -687,8 +750,8 @@ You can view the full invoice breakdown in Billing > Invoices.
 
 Thank you for your prompt payment!
 ---
-ShipFlow Billing Department""",
-                     "ShipFlow Billing", "invoice", inv_id,
+PacketBase Billing Department""",
+                     "PacketBase Billing", "invoice", inv_id,
                      "View Invoice", "/billing",
                      1, 0, 0, created.isoformat()))
             else:
@@ -719,12 +782,12 @@ PAYMENT OPTIONS
 ---
 1. Pay now via the Billing page using your default payment method
 2. Pay via bank transfer using the details in your account settings
-3. Contact billing@shipflow.com for custom payment arrangements
+3. Contact billing@packetbase.com for custom payment arrangements
 
 Please ensure payment is made by the due date to avoid late fees. Accounts with invoices overdue by more than 30 days may have shipping services temporarily suspended.
 ---
-ShipFlow Billing Department""",
-                     "ShipFlow Billing", "invoice", inv_id,
+PacketBase Billing Department""",
+                     "PacketBase Billing", "invoice", inv_id,
                      "Pay Now", "/billing",
                      random.choice([0, 0]), 0, 0, created.isoformat()))
 
@@ -760,10 +823,10 @@ Refund Amount:    ${cl_amount:.2f}
 
 Your claim has been reviewed and approved. A refund of ${cl_amount:.2f} will be credited to your default payment method within 5-7 business days.
 
-If you have questions about this resolution, please contact our claims department at claims@shipflow.com with your claim ID.
+If you have questions about this resolution, please contact our claims department at claims@packetbase.com with your claim ID.
 ---
-ShipFlow Claims Department""",
-                     "ShipFlow Claims", "claim", cl_id,
+PacketBase Claims Department""",
+                     "PacketBase Claims", "claim", cl_id,
                      "View Claims", "/claims",
                      random.choice([0, 1]), 0, 0, created.isoformat()))
             elif cl_status == "investigating":
@@ -796,10 +859,10 @@ Our claims team is actively reviewing your case. This process typically takes 3-
 
 You will be notified once a decision has been made. No further action is required from you at this time.
 
-If you have additional evidence or information to support your claim, you can reply to this notification or email claims@shipflow.com.
+If you have additional evidence or information to support your claim, you can reply to this notification or email claims@packetbase.com.
 ---
-ShipFlow Claims Department""",
-                     "ShipFlow Claims", "claim", cl_id,
+PacketBase Claims Department""",
+                     "PacketBase Claims", "claim", cl_id,
                      "View Claims", "/claims",
                      random.choice([0, 0]), 0, 0, created.isoformat()))
 
@@ -839,8 +902,8 @@ Returns:          {sum(1 for s in acct_ships if s[2]=="returned")}
 
 View your full analytics dashboard for detailed breakdowns and trends.
 ---
-ShipFlow Weekly Reports""",
-             "ShipFlow Analytics", None, None,
+PacketBase Weekly Reports""",
+             "PacketBase Analytics", None, None,
              "View Dashboard", "/dashboard",
              random.choice([0, 1]), 0, 0, (now - timedelta(days=random.randint(0, 3))).isoformat()))
 
@@ -851,12 +914,12 @@ ShipFlow Weekly Reports""",
             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (aid, "system", "low",
              "Security: New Login Detected",
-             "New sign-in to your ShipFlow account",
+             "New sign-in to your PacketBase account",
              "A new login to your account was detected.",
              f"""SECURITY NOTIFICATION
 ---
 
-A new sign-in to your ShipFlow account was detected:
+A new sign-in to your PacketBase account was detected:
 
 Device:     Web Browser
 Location:   United States
@@ -869,12 +932,12 @@ If you did NOT sign in, please:
 1. Change your password immediately
 2. Regenerate your API key from Account Settings
 3. Review recent activity in your Activity Log
-4. Contact security@shipflow.com
+4. Contact security@packetbase.com
 
 We take the security of your account seriously. Enable two-factor authentication in Settings for additional protection.
 ---
-ShipFlow Security Team""",
-             "ShipFlow Security", "account", aid,
+PacketBase Security Team""",
+             "PacketBase Security", "account", aid,
              "Review Activity", "/account",
              random.choice([0, 1, 1]), 0, 0, (now - timedelta(hours=random.randint(1, 72))).isoformat()))
 
@@ -887,6 +950,206 @@ ShipFlow Security Team""",
             c.execute("INSERT INTO activity_log (account_id, action, details, created_at) VALUES (?,?,?,?)",
                       (acct["id"], action, f"User performed: {action.replace('_',' ')}", created.isoformat()))
 
+    # ===== CONNECTED EMAILS (demo account) =====
+    email_labels = [
+        ("admin@packetbase.com", "general", "gmail", 1),
+        ("claims@packetbase.com", "claims", "gmail", 0),
+        ("billing@packetbase.com", "billing", "outlook", 0),
+        ("julian.personal@gmail.com", "personal", "gmail", 0),
+    ]
+    email_ids = {}
+    for addr, label, provider, is_primary in email_labels:
+        created = (now - timedelta(days=random.randint(30, 90))).isoformat()
+        c.execute("INSERT INTO connected_emails (account_id, email_address, label, provider, is_primary, connected_at) VALUES (?,?,?,?,?,?)",
+                  (demo_account_id, addr, label, provider, is_primary, created))
+        email_ids[addr] = c.lastrowid
+
+    # Get some claim IDs for linking
+    claim_rows = c.execute("SELECT id FROM claims WHERE account_id=? LIMIT 20", (demo_account_id,)).fetchall()
+
+    # ===== INBOX MESSAGES =====
+    # Claims-related emails (sent to claims@ inbox)
+    claims_email_id = email_ids["claims@packetbase.com"]
+    claim_senders = [
+        ("Sarah Johnson", "sarah.j@acmecorp.com"),
+        ("Mike Chen", "mike.chen@globalgoods.com"),
+        ("Emily Rodriguez", "e.rodriguez@nextstep.io"),
+        ("James Wilson", "jwilson@primeship.com"),
+        ("Lisa Park", "lisa.park@vendorplus.com"),
+        ("Tom Anderson", "t.anderson@retailmax.com"),
+        ("Amy Foster", "amy.f@logisticspro.com"),
+    ]
+
+    claim_subjects = [
+        ("Package arrived damaged - Order #{}", "claim"),
+        ("Missing items in shipment #{}", "claim"),
+        ("Delivery delay complaint - Tracking #{}", "issue"),
+        ("Wrong address delivery - Need reroute #{}", "issue"),
+        ("Request for refund - Damaged goods #{}", "claim"),
+        ("Late delivery - SLA violation #{}", "issue"),
+        ("Package lost in transit #{}", "claim"),
+    ]
+
+    for i, (subj_template, cat) in enumerate(claim_subjects):
+        order_num = random.randint(10000, 99999)
+        sender_name, sender_email = claim_senders[i % len(claim_senders)]
+        subj = subj_template.format(order_num)
+        claim_id = claim_rows[i][0] if i < len(claim_rows) else None
+        body = f"""Hi PacketBase Team,
+
+I'm writing regarding order #{order_num}. {random.choice([
+            "The package arrived with visible damage to the outer box and the contents were broken.",
+            "We received the shipment but several items from the order were missing.",
+            "This delivery was significantly delayed beyond the promised delivery window.",
+            "The package was delivered to the wrong address and we need it rerouted immediately.",
+            "The goods arrived in unacceptable condition and we are requesting a full refund.",
+            "This shipment missed the SLA by over 5 business days, causing issues with our customer.",
+            "We have been waiting for this package for over 2 weeks and tracking shows no updates.",
+        ])}
+
+Please investigate and let us know the resolution.
+
+Best regards,
+{sender_name}"""
+        received = (now - timedelta(days=random.randint(0, 30), hours=random.randint(0, 23))).isoformat()
+        preview = body[:100].replace("\n", " ").strip()
+        c.execute("""INSERT INTO inbox_messages (account_id, connected_email_id, from_address, from_name, to_address, subject, body, preview, category, is_read, is_starred, claim_id, received_at)
+                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                  (demo_account_id, claims_email_id, sender_email, sender_name, "claims@packetbase.com",
+                   subj, body, preview, cat, random.choice([0,0,0,1]), random.choice([0,0,1]), claim_id, received))
+
+    # Billing-related emails (sent to billing@ inbox)
+    billing_email_id = email_ids["billing@packetbase.com"]
+    billing_messages = [
+        ("PacketBase Billing", "noreply@packetbase.com", "Invoice #INV-2026-0042 - Payment Received",
+         "Your payment of $1,247.50 for invoice INV-2026-0042 has been successfully processed. Thank you for your prompt payment.", "billing"),
+        ("Stripe", "receipts@stripe.com", "Payment Receipt - PacketBase Subscription",
+         "Your subscription payment of $49.00/month has been processed. Next billing date: May 1, 2026. View your receipt at dashboard.stripe.com.", "billing"),
+        ("PacketBase Billing", "noreply@packetbase.com", "Invoice #INV-2026-0041 - Due in 5 Days",
+         "This is a reminder that invoice INV-2026-0041 for $892.30 is due on April 15, 2026. Please ensure payment is made by the due date to avoid late fees.", "billing"),
+        ("FedEx Billing", "billing@fedex.com", "Your FedEx Account Statement - March 2026",
+         "Your monthly statement for March 2026 is now available. Total charges: $3,421.89. View and pay your statement at fedex.com/billing.", "billing"),
+        ("PayPal", "service@paypal.com", "You've received a refund of $156.00",
+         "A refund of $156.00 has been issued to your PayPal account for claim #CLM-8847. The funds will appear in your balance within 3-5 business days.", "billing"),
+    ]
+    for sender_name, sender_email, subj, body, cat in billing_messages:
+        received = (now - timedelta(days=random.randint(0, 20), hours=random.randint(0, 23))).isoformat()
+        c.execute("""INSERT INTO inbox_messages (account_id, connected_email_id, from_address, from_name, to_address, subject, body, preview, category, is_read, received_at)
+                     VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                  (demo_account_id, billing_email_id, sender_email, sender_name, "billing@packetbase.com",
+                   subj, body, body[:100], cat, random.choice([0,1]), received))
+
+    # General business emails (sent to admin@ inbox)
+    general_email_id = email_ids["admin@packetbase.com"]
+    general_messages = [
+        ("UPS Account Manager", "account.manager@ups.com", "Your UPS Contract Renewal - Action Required",
+         "Dear Valued Customer,\n\nYour UPS shipping contract is up for renewal on May 1, 2026. We'd like to schedule a call to discuss your volume discounts and new service options.\n\nPlease reply to schedule a time that works for you.\n\nBest,\nKevin Wright\nUPS Enterprise Solutions", "general"),
+        ("DHL Express", "notifications@dhl.com", "New DHL Express Rates Effective April 2026",
+         "Please be advised that updated DHL Express rates are now in effect as of April 1, 2026. Key changes include a 3.2% general rate increase and updated fuel surcharges. View the full rate card at dhl.com/rates.", "general"),
+        ("PacketBase System", "system@packetbase.com", "Weekly Analytics Report - Week of March 31",
+         "Your weekly shipping analytics summary:\n\n- Total Shipments: 847\n- On-Time Rate: 94.2%\n- Average Cost: $14.32/shipment\n- Exceptions: 12\n- Returns: 23\n\nView full report in your dashboard.", "general"),
+        ("FedEx", "alerts@fedex.com", "Service Alert: Weather Delays in Southeast Region",
+         "Due to severe weather conditions in the Southeast region, shipments to FL, GA, NC, and SC may experience delays of 1-2 business days. We are monitoring the situation and will provide updates. Affected tracking numbers will show updated ETAs.", "alert"),
+        ("PacketBase System", "system@packetbase.com", "API Usage Alert - 80% of Monthly Limit",
+         "Your API usage has reached 80% of your monthly limit (8,000 of 10,000 calls). Consider upgrading your plan or optimizing your API calls to avoid interruptions.", "alert"),
+        ("USPS Business Solutions", "business@usps.com", "New USPS Ground Advantage Pricing",
+         "We're excited to announce updated pricing for USPS Ground Advantage, effective immediately. Businesses shipping 500+ packages/month qualify for additional volume discounts. Contact your account rep for details.", "general"),
+        ("Warehouse Team", "warehouse@packetbase.com", "Inventory Alert: Low Stock in Newark Warehouse",
+         "The Newark warehouse is approaching capacity limits. Current utilization: 92%. Recommend scheduling overflow routing to the Philadelphia facility. Please review and approve the transfer request.", "alert"),
+        ("PacketBase Security", "security@packetbase.com", "New Login from Unrecognized Device",
+         "A new sign-in to your PacketBase account was detected from Chrome on macOS in New York, NY. If this was you, no action is needed. If not, please change your password immediately.", "system"),
+    ]
+    for sender_name, sender_email, subj, body, cat in general_messages:
+        received = (now - timedelta(days=random.randint(0, 14), hours=random.randint(0, 23))).isoformat()
+        c.execute("""INSERT INTO inbox_messages (account_id, connected_email_id, from_address, from_name, to_address, subject, body, preview, category, is_read, is_starred, received_at)
+                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+                  (demo_account_id, general_email_id, sender_email, sender_name, "admin@packetbase.com",
+                   subj, body, body[:100].replace("\n"," "), cat, random.choice([0,0,1]), random.choice([0,0,0,1]), received))
+
+    # Personal emails (sent to personal inbox)
+    personal_email_id = email_ids["julian.personal@gmail.com"]
+    personal_messages = [
+        ("Amazon", "shipment-tracking@amazon.com", "Your Amazon order has shipped!",
+         "Your order #114-3948271-8823947 has shipped and is on its way! Estimated delivery: April 12, 2026. Track your package at amazon.com/orders.", "personal"),
+        ("LinkedIn", "notifications@linkedin.com", "You have 5 new connection requests",
+         "You have 5 pending connection requests on LinkedIn. Sarah Chen, VP of Logistics at GlobalFreight, and 4 others want to connect with you.", "personal"),
+        ("Google Workspace", "no-reply@accounts.google.com", "Security alert for your Google Account",
+         "We noticed a new sign-in to your Google Account on a Windows device. If this was you, you can disregard this email. If not, please review your account activity.", "personal"),
+        ("Newsletter", "digest@techcrunch.com", "TechCrunch Daily: Logistics AI Startups Raise $2B in Q1",
+         "Today's top stories: AI-powered logistics startups raised a record $2 billion in Q1 2026, led by route optimization and predictive analytics companies. Read more...", "personal"),
+    ]
+    for sender_name, sender_email, subj, body, cat in personal_messages:
+        received = (now - timedelta(days=random.randint(0, 7), hours=random.randint(0, 23))).isoformat()
+        c.execute("""INSERT INTO inbox_messages (account_id, connected_email_id, from_address, from_name, to_address, subject, body, preview, category, is_read, received_at)
+                     VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                  (demo_account_id, personal_email_id, sender_email, sender_name, "julian.personal@gmail.com",
+                   subj, body, body[:100], cat, random.choice([0,1]), received))
+
+    # ===== EMAIL REVIEW QUEUE (classify inbox messages for demo account) =====
+    inbox_rows = c.execute("""SELECT id, subject, body, from_address FROM inbox_messages
+                              WHERE account_id=? ORDER BY received_at DESC""", (demo_account_id,)).fetchall()
+    for row in inbox_rows:
+        msg_id, subj, body, from_addr = row
+        text = (subj + " " + body).lower()
+        extracted = {}
+        issues = []
+
+        # Extract order numbers
+        order_match = re.search(r'(?:order|ord)[#:\s]*([A-Z0-9\-]{4,})', subj + " " + body, re.IGNORECASE)
+        if order_match:
+            extracted["order_number"] = order_match.group(1)
+        # Extract invoice numbers
+        inv_match = re.search(r'(?:invoice|inv)[#:\s]*([A-Z0-9\-]{4,})', subj + " " + body, re.IGNORECASE)
+        if inv_match:
+            extracted["invoice_number"] = inv_match.group(1)
+        # Extract amounts
+        amount_match = re.search(r'\$([0-9,]+\.?\d{0,2})', subj + " " + body)
+        if amount_match:
+            extracted["amount"] = amount_match.group(1).replace(",", "")
+        # Extract claim IDs
+        claim_match = re.search(r'(?:claim|clm)[#:\s]*([A-Z0-9\-]{3,})', subj + " " + body, re.IGNORECASE)
+        if claim_match:
+            extracted["claim_id"] = claim_match.group(1)
+
+        # Classify
+        category = "general"
+        if any(k in text for k in ["damage","broken","lost","missing","claim","refund","compensation"]):
+            category = "claim"
+        elif any(k in text for k in ["delay","late","wrong address","reroute","complaint","sla violation"]):
+            category = "issue"
+        elif any(k in text for k in ["invoice","payment","receipt","billing","charge","statement","subscription"]):
+            category = "billing"
+        elif any(k in text for k in ["alert","warning","urgent","action required","security"]):
+            category = "alert"
+        elif any(k in text for k in ["shipped","delivered","tracking","transit"]):
+            category = "shipping"
+        extracted["category"] = category
+
+        # Issues
+        if category in ("claim", "issue") and "tracking_number" not in extracted:
+            issues.append({"field": "tracking_number", "message": "Could not find a tracking number in this email"})
+        if category == "billing" and "amount" not in extracted and "invoice_number" not in extracted:
+            issues.append({"field": "amount", "message": "No invoice number or amount found"})
+
+        status = "pending" if issues else "saved"
+        # Some resolved ones for variety
+        resolved_at = None
+        linked_type = None
+        linked_id = None
+        auto_created = 0
+        if status == "saved" and random.random() < 0.4:
+            status = "resolved"
+            resolved_at = (now - timedelta(days=random.randint(0, 5))).isoformat()
+            if category == "claim" and claim_rows:
+                linked_type = "claim"
+                linked_id = random.choice(claim_rows)[0]
+                auto_created = 1
+
+        c.execute("""INSERT INTO email_review_queue (account_id, inbox_message_id, extracted_data, issues, status, created_at, resolved_at, linked_entity_type, linked_entity_id, auto_created)
+                     VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                  (demo_account_id, msg_id, json.dumps(extracted), json.dumps(issues), status,
+                   (now - timedelta(days=random.randint(0, 10))).isoformat(), resolved_at, linked_type, linked_id, auto_created))
+
     conn.commit()
     conn.close()
 
@@ -894,15 +1157,16 @@ ShipFlow Security Team""",
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     tables = ["accounts","payment_methods","invoices","invoice_lines","shipping_rates",
-              "carriers","warehouses","customers","shipments","shipment_events","claims",
-              "saved_addresses","notifications","activity_log"]
+              "carriers","warehouses","customers","customer_addresses","products","shipments","shipment_items",
+              "shipment_events","claims","saved_addresses","notifications","activity_log",
+              "connected_emails","inbox_messages","email_review_queue"]
     print()
     for t in tables:
         c.execute(f"SELECT COUNT(*) FROM {t}")
         print(f"  {t}: {c.fetchone()[0]}")
     conn.close()
     print("\n  Seed complete!")
-    print(f"  Demo login: admin@shipflow.com / admin123\n")
+    print(f"  Demo login: admin@packetbase.com / admin123\n")
 
 
 if __name__ == "__main__":
